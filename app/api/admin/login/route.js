@@ -1,64 +1,8 @@
 import { NextResponse } from 'next/server';
 import { schemas } from '@/lib/validation';
 import { generateToken } from '@/lib/auth';
-
-// Initialize localStorage for server-side
-if (typeof global !== 'undefined' && !global.localStorage) {
-  global.localStorage = {
-    data: {},
-    getItem: function (key) { return this.data[key] || null; },
-    setItem: function (key, value) { this.data[key] = value; },
-    removeItem: function (key) { delete this.data[key]; },
-    clear: function () { this.data = {}; }
-  };
-}
-
-// Import and initialize LocalStorageDB
-let db;
-try {
-  const { LocalStorageDB } = require('@/lib/localStorage.service');
-  db = new LocalStorageDB();
-} catch (error) {
-  console.error('Failed to initialize LocalStorageDB:', error);
-  // Fallback to simple object-based storage
-  db = {
-    data: {},
-    findAdminByUsername(username) {
-      const admins = this.data.admins || [];
-      return admins.find(a => a.username === username);
-    },
-    createAdmin(adminData) {
-      const admins = this.data.admins || [];
-      const newAdmin = {
-        id: '_' + Math.random().toString(36).substr(2, 9),
-        ...adminData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      admins.push(newAdmin);
-      this.data.admins = admins;
-      return newAdmin;
-    },
-    updateAdmin(id, updateData) {
-      const admins = this.data.admins || [];
-      const index = admins.findIndex(a => a.id === id);
-      if (index !== -1) {
-        admins[index] = { ...admins[index], ...updateData, updatedAt: new Date().toISOString() };
-        this.data.admins = admins;
-        return admins[index];
-      }
-      return null;
-    }
-  };
-}
-
-// Test configuration
-const TEST_CONFIG = {
-  TEST_USERNAME: 'testadmin',
-  TEST_PASSWORD: 'TestAdmin@2024!',
-  BYPASS_TOKEN: 'ADMIN_TEST_BYPASS',
-  TEST_MODE_TOKEN: 'TEST_BYPASS_2024!'
-};
+import { findAdminByUsername, updateAdminLastLogin } from '@/lib/mongodb.data.service';
+import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
   try {
@@ -66,10 +10,7 @@ export async function POST(request) {
     const body = await request.json();
     const { error, value } = schemas.adminLogin.validate(body);
 
-    // Allow test bypass to skip validation for test credentials
-    const isTestAttempt = body.username === TEST_CONFIG.TEST_USERNAME;
-
-    if (error && !isTestAttempt) {
+    if (error) {
       return NextResponse.json({
         success: false,
         message: 'Validation failed',
@@ -77,114 +18,16 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    const { username, password, bypassToken, testMode } = body;
+    const { username, password } = value;
 
-    // Check for test mode bypass
-    if (isTestAttempt && (
-      password === TEST_CONFIG.TEST_PASSWORD ||
-      (bypassToken === TEST_CONFIG.BYPASS_TOKEN) ||
-      (testMode === TEST_CONFIG.TEST_MODE_TOKEN)
-    )) {
-      console.log('🧪 Test mode bypass activated for admin login');
+    // Debug: Log login attempt
+    console.log('🔐 Admin login attempt for:', username);
 
-      // Find or create test admin
-      let admin = db.findAdminByUsername(TEST_CONFIG.TEST_USERNAME);
+    // Try to find admin by username
+    let admin = await findAdminByUsername(username);
 
-      if (!admin) {
-        // Create test admin if not exists
-        admin = db.createAdmin({
-          username: TEST_CONFIG.TEST_USERNAME,
-          email: 'testadmin@verification.portal',
-          password: 'bypassed', // Doesn't matter for test mode
-          fullName: 'Test Administrator',
-          role: 'super_admin',
-          department: 'Testing',
-          permissions: [
-            'view_appeals',
-            'manage_appeals',
-            'view_employees',
-            'manage_employees',
-            'send_emails',
-            'view_reports',
-            'manage_admins'
-          ],
-          testMode: true,
-          bypassToken: TEST_CONFIG.BYPASS_TOKEN
-        });
-      } else {
-        // Update admin to ensure test mode is enabled
-        db.updateAdmin(admin.id, {
-          isActive: true,
-          testMode: true,
-          bypassToken: TEST_CONFIG.BYPASS_TOKEN,
-          permissions: [
-            'view_appeals',
-            'manage_appeals',
-            'view_employees',
-            'manage_employees',
-            'send_emails',
-            'view_reports',
-            'manage_admins'
-          ]
-        });
-      }
-
-      // Update last login time
-      const updatedAdmin = db.updateAdmin(admin.id, {
-        lastLoginAt: new Date().toISOString()
-      });
-
-      // Generate JWT token with test mode indicator
-      const token = generateToken({
-        id: admin.id,
-        username: admin.username,
-        email: admin.email,
-        fullName: admin.fullName,
-        role: admin.role,
-        permissions: admin.permissions,
-        testMode: true,
-        bypassToken: TEST_CONFIG.BYPASS_TOKEN
-      });
-
-      // Return response without sensitive data
-      const adminResponse = {
-        id: admin.id,
-        username: admin.username,
-        email: admin.email,
-        fullName: admin.fullName,
-        role: admin.role,
-        department: admin.department,
-        permissions: admin.permissions,
-        lastLoginAt: updatedAdmin.lastLoginAt,
-        createdAt: admin.createdAt,
-        testMode: true // Indicate this is test mode
-      };
-
-      return NextResponse.json({
-        success: true,
-        message: 'Test admin login successful - Test mode activated',
-        data: {
-          admin: adminResponse,
-          token,
-          testMode: true
-        }
-      }, { status: 200 });
-    }
-
-
-    // Normal authentication flow
-    const { username: normalUsername, password: normalPassword } = value;
-
-    // Try to find admin by username OR email (improved UX)
-    let admin = db.findAdminByUsername(normalUsername);
-
-    // If not found by username, try by email
-    if (!admin) {
-      const admins = db.getData ? db.getData('admins') : db.data?.admins || [];
-      admin = admins.find(a =>
-        a.email && a.email.toLowerCase() === normalUsername.toLowerCase()
-      );
-    }
+    // Debug: Log admin lookup result
+    console.log('🔍 Admin lookup result:', admin ? 'FOUND' : 'NOT FOUND');
 
     if (!admin) {
       return NextResponse.json({
@@ -205,11 +48,10 @@ export async function POST(request) {
     let isPasswordValid = false;
     if (admin.password.startsWith('$2') || admin.password.startsWith('$2a') || admin.password.startsWith('$2b')) {
       // Hashed password - use bcrypt
-      const bcrypt = require('bcryptjs');
-      isPasswordValid = await bcrypt.compare(normalPassword, admin.password);
+      isPasswordValid = await bcrypt.compare(password, admin.password);
     } else {
       // Plain text password for demo
-      isPasswordValid = normalPassword === admin.password;
+      isPasswordValid = password === admin.password;
     }
 
     if (!isPasswordValid) {
@@ -220,13 +62,11 @@ export async function POST(request) {
     }
 
     // Update last login time
-    const updatedAdmin = db.updateAdmin(admin.id, {
-      lastLoginAt: new Date().toISOString()
-    });
+    await updateAdminLastLogin(admin._id.toString());
 
     // Generate JWT token
     const token = generateToken({
-      id: admin.id,
+      id: admin._id.toString(),
       username: admin.username,
       email: admin.email,
       fullName: admin.fullName,
@@ -237,17 +77,19 @@ export async function POST(request) {
 
     // Return response without sensitive data
     const adminResponse = {
-      id: admin.id,
+      id: admin._id.toString(),
       username: admin.username,
       email: admin.email,
       fullName: admin.fullName,
       role: admin.role,
       department: admin.department,
       permissions: admin.permissions,
-      lastLoginAt: updatedAdmin.lastLoginAt,
+      lastLoginAt: new Date(),
       createdAt: admin.createdAt,
       testMode: admin.testMode || false
     };
+
+    console.log('✅ Admin login successful:', admin.username);
 
     return NextResponse.json({
       success: true,

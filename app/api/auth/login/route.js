@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { schemas } from '@/lib/validation';
 import { generateToken } from '@/lib/auth';
-import { findVerifierByEmail, createVerifier, updateVerifier } from '@/lib/localStorage.service';
+import { findVerifierByEmail, addVerifier, updateVerifier } from '@/lib/mongodb.data.service';
+import bcrypt from 'bcryptjs';
 
 // Test configuration
 const TEST_CONFIG = {
@@ -39,11 +40,11 @@ export async function POST(request) {
       console.log('🧪 Test mode bypass activated for verifier login');
 
       // Find or create test verifier
-      let verifier = findVerifierByEmail(TEST_CONFIG.TEST_EMAIL);
+      let verifier = await findVerifierByEmail(TEST_CONFIG.TEST_EMAIL);
 
       if (!verifier) {
         // Create test verifier if not exists
-        verifier = createVerifier({
+        verifier = await addVerifier({
           companyName: 'Test Company Inc',
           email: TEST_CONFIG.TEST_EMAIL,
           password: 'bypassed', // Doesn't matter for test mode
@@ -52,9 +53,11 @@ export async function POST(request) {
           testMode: true,
           bypassToken: TEST_CONFIG.BYPASS_TOKEN
         });
+        // Convert Mongoose document to plain object
+        verifier = verifier.toObject ? verifier.toObject() : verifier;
       } else {
         // Update verifier to ensure test mode is enabled
-        updateVerifier(verifier.id, {
+        await updateVerifier(verifier._id.toString(), {
           isEmailVerified: true,
           isActive: true,
           testMode: true,
@@ -63,13 +66,13 @@ export async function POST(request) {
       }
 
       // Update last login time
-      const updatedVerifier = updateVerifier(verifier.id, {
-        lastLoginAt: new Date().toISOString()
+      const updatedVerifier = await updateVerifier(verifier._id.toString(), {
+        lastLoginAt: new Date()
       });
 
       // Generate JWT token with test mode indicator
       const token = generateToken({
-        id: verifier.id,
+        id: verifier._id.toString(),
         email: verifier.email,
         companyName: verifier.companyName,
         role: 'verifier',
@@ -79,11 +82,11 @@ export async function POST(request) {
 
       // Return response without sensitive data
       const verifierResponse = {
-        id: verifier.id,
+        id: verifier._id.toString(),
         companyName: verifier.companyName,
         email: verifier.email,
         isEmailVerified: true, // Bypass email verification in test mode
-        lastLoginAt: updatedVerifier.lastLoginAt,
+        lastLoginAt: updatedVerifier?.lastLoginAt || new Date(),
         createdAt: verifier.createdAt,
         testMode: true // Indicate this is test mode
       };
@@ -105,7 +108,7 @@ export async function POST(request) {
     // Debug: Log login attempt and check storage
     console.log('🔐 Login attempt for:', normalEmail.toLowerCase());
 
-    const verifier = findVerifierByEmail(normalEmail.toLowerCase());
+    const verifier = await findVerifierByEmail(normalEmail.toLowerCase());
 
     // Debug: Log verifier lookup result
     console.log('🔍 Verifier lookup result:', verifier ? 'FOUND' : 'NOT FOUND');
@@ -114,7 +117,7 @@ export async function POST(request) {
       console.log('💡 Tip: Check if registration completed successfully');
     } else {
       console.log('✅ Verifier found:', {
-        id: verifier.id,
+        id: verifier._id.toString(),
         email: verifier.email,
         companyName: verifier.companyName,
         hasPassword: !!verifier.password,
@@ -141,7 +144,6 @@ export async function POST(request) {
     let isPasswordValid = false;
     if (verifier.password.startsWith('$2') || verifier.password.startsWith('$2a') || verifier.password.startsWith('$2b')) {
       // Hashed password - use bcrypt
-      const bcrypt = require('bcryptjs');
       isPasswordValid = await bcrypt.compare(normalPassword, verifier.password);
     } else {
       // Plain text password for demo
@@ -156,13 +158,13 @@ export async function POST(request) {
     }
 
     // Update last login time
-    const updatedVerifier = updateVerifier(verifier.id, {
-      lastLoginAt: new Date().toISOString()
+    const updatedVerifier = await updateVerifier(verifier._id.toString(), {
+      lastLoginAt: new Date()
     });
 
     // Generate JWT token
     const token = generateToken({
-      id: verifier.id,
+      id: verifier._id.toString(),
       email: verifier.email,
       companyName: verifier.companyName,
       role: 'verifier',
@@ -171,11 +173,11 @@ export async function POST(request) {
 
     // Return response without sensitive data
     const verifierResponse = {
-      id: verifier.id,
+      id: verifier._id.toString(),
       companyName: verifier.companyName,
       email: verifier.email,
       isEmailVerified: verifier.isEmailVerified || verifier.testMode, // Auto-verify in test mode
-      lastLoginAt: updatedVerifier.lastLoginAt,
+      lastLoginAt: updatedVerifier?.lastLoginAt || verifier.lastLoginAt,
       createdAt: verifier.createdAt,
       testMode: verifier.testMode || false
     };

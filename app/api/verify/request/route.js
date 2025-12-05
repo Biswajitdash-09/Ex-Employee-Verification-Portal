@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
-import { extractTokenFromHeader } from '@/lib/auth';
+import { extractTokenFromHeader, verifyToken } from '@/lib/auth';
 import { schemas } from '@/lib/validation';
 import { compareEmployeeData, calculateFnFStatus } from '@/lib/services/comparisonService';
-import db from '@/lib/localStorage.service';
+import {
+  findEmployeeById,
+  addVerificationRecord,
+  findVerificationRecord,
+  getVerificationRecordsByVerifier,
+  generateSequentialId
+} from '@/lib/mongodb.data.service';
+import VerificationRecord from '@/lib/models/VerificationRecord.js';
 
 export async function POST(request) {
   try {
@@ -18,11 +25,8 @@ export async function POST(request) {
       }, { status: 401 });
     }
 
-
     // Verify token
-    const { verifyToken } = await import('@/lib/auth');
-
-    let decoded; // Declare outside try-catch for wider scope
+    let decoded;
     try {
       decoded = verifyToken(token);
       console.log('Verify Request - Token decoded successfully:', decoded);
@@ -34,8 +38,6 @@ export async function POST(request) {
           message: 'Verifier access required'
         }, { status: 403 });
       }
-
-      request.verifier = decoded;
     } catch (tokenError) {
       console.error('Verify Request - Token verification failed:', tokenError.message);
       return NextResponse.json({
@@ -56,11 +58,10 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-
     const { employeeId, ...otherFields } = value;
 
-    // Find employee in localStorage
-    const employee = db.findEmployee(employeeId.toUpperCase());
+    // Find employee in MongoDB
+    const employee = await findEmployeeById(employeeId.toUpperCase());
     if (!employee) {
       return NextResponse.json({
         success: false,
@@ -77,8 +78,12 @@ export async function POST(request) {
     // Calculate F&F status
     const fnfStatus = calculateFnFStatus(employee.exitReason, employee.dateOfLeaving);
 
+    // Generate verification ID
+    const verificationId = await generateSequentialId('VER', VerificationRecord);
+
     // Create verification record
-    const verificationRecord = db.createVerificationRecord({
+    const verificationRecord = await addVerificationRecord({
+      verificationId,
       verifierId: decoded.id,
       employeeId: employeeId.toUpperCase(),
       submittedData: verificationData,
@@ -86,12 +91,7 @@ export async function POST(request) {
       overallStatus: comparisonResults.overallStatus,
       matchScore: comparisonResults.matchScore,
       consentGiven: verificationData.consentGiven,
-      verificationCompletedAt: new Date().toISOString()
-    });
-
-    // Update verifier with new verification request
-    db.updateVerifier(decoded.id, {
-      lastLoginAt: new Date().toISOString()
+      verificationCompletedAt: new Date()
     });
 
     // Prepare response data
@@ -152,7 +152,6 @@ export async function GET(request) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
 
     if (decoded.role !== 'verifier') {
@@ -169,7 +168,7 @@ export async function GET(request) {
     // If verification ID is provided, return specific verification details
     if (verificationId) {
       // Find verification record
-      const verificationRecord = db.findVerificationRecord(verificationId);
+      const verificationRecord = await findVerificationRecord(verificationId);
       if (!verificationRecord || verificationRecord.verifierId !== decoded.id) {
         return NextResponse.json({
           success: false,
@@ -178,7 +177,7 @@ export async function GET(request) {
       }
 
       // Find employee
-      const employee = db.findEmployee(verificationRecord.employeeId);
+      const employee = await findEmployeeById(verificationRecord.employeeId);
       if (!employee) {
         return NextResponse.json({
           success: false,
@@ -187,7 +186,6 @@ export async function GET(request) {
       }
 
       // Calculate F&F status
-      const { calculateFnFStatus } = require('@/lib/services/comparisonService');
       const fnfStatus = calculateFnFStatus(employee.exitReason, employee.dateOfLeaving);
 
       // Return verification details
@@ -216,17 +214,13 @@ export async function GET(request) {
       }, { status: 200 });
     }
 
-    // Otherwise, return verification history with pagination
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
-
-    // Get verifier's verification history from localStorage
-    const result = db.getVerificationRecordsByVerifier(decoded.id, page, limit);
+    // Otherwise, return verification history
+    const verificationRecords = await getVerificationRecordsByVerifier(decoded.id);
 
     return NextResponse.json({
       success: true,
       data: {
-        verificationRecords: result.records.map(record => ({
+        verificationRecords: verificationRecords.map(record => ({
           verificationId: record.verificationId,
           employeeId: record.employeeId,
           overallStatus: record.overallStatus,
@@ -234,12 +228,7 @@ export async function GET(request) {
           createdAt: record.createdAt,
           verificationCompletedAt: record.verificationCompletedAt
         })),
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          pages: result.pages
-        }
+        total: verificationRecords.length
       }
     }, { status: 200 });
 
