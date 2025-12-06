@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { extractTokenFromHeader } from '@/lib/auth';
+import { extractTokenFromHeader, verifyToken } from '@/lib/auth';
 import { schemas } from '@/lib/validation';
-import db from '@/lib/localStorage.service';
+import {
+  getAppealById,
+  updateAppeal,
+  findVerifierById,
+  findVerificationRecord,
+  findEmployeeById
+} from '@/lib/mongodb.data.service';
 import { sendAppealResponseEmail } from '@/lib/services/emailService';
 
 export async function POST(request, { params }) {
@@ -15,9 +21,8 @@ export async function POST(request, { params }) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
-    
+
     if (!['admin', 'hr_manager', 'super_admin'].includes(decoded.role)) {
       return NextResponse.json({
         success: false,
@@ -26,7 +31,7 @@ export async function POST(request, { params }) {
     }
 
     // Check permissions
-    const hasPermission = decoded.permissions.includes('manage_appeals');
+    const hasPermission = decoded.permissions?.includes('manage_appeals');
     if (!hasPermission) {
       return NextResponse.json({
         success: false,
@@ -34,12 +39,10 @@ export async function POST(request, { params }) {
       }, { status: 403 });
     }
 
-    request.admin = decoded;
-
     // Parse and validate request body
     const body = await request.json();
     const { error, value } = schemas.appealResponse.validate(body);
-    
+
     if (error) {
       return NextResponse.json({
         success: false,
@@ -49,10 +52,10 @@ export async function POST(request, { params }) {
     }
 
     const { status, hrResponse } = value;
-    const { id: appealId } = params;
+    const { id: appealId } = await params;
 
     // Find appeal
-    const appeal = db.findAppeal(appealId);
+    const appeal = await getAppealById(appealId);
     if (!appeal) {
       return NextResponse.json({
         success: false,
@@ -69,7 +72,7 @@ export async function POST(request, { params }) {
     }
 
     // Get verifier information
-    const verifier = db.findVerifierById(appeal.verifierId);
+    const verifier = await findVerifierById(appeal.verifierId);
     if (!verifier) {
       return NextResponse.json({
         success: false,
@@ -78,12 +81,12 @@ export async function POST(request, { params }) {
     }
 
     // Update appeal with response
-    const updatedAppeal = db.updateAppeal(appealId, {
+    const updatedAppeal = await updateAppeal(appealId, {
       status: status,
       hrResponse: hrResponse.trim(),
+      hrComments: hrResponse.trim(),
       reviewedBy: decoded.id,
-      reviewedAt: new Date().toISOString(),
-      emailSentAt: new Date().toISOString()
+      reviewedAt: new Date()
     });
 
     // Send email notification to verifier
@@ -104,13 +107,13 @@ export async function POST(request, { params }) {
         employeeId: updatedAppeal.employeeId,
         verifierEmail: verifier.email,
         reviewedAt: updatedAppeal.reviewedAt,
-        emailSent: !!updatedAppeal.emailSentAt
+        emailSent: true
       }
     }, { status: 200 });
 
   } catch (error) {
     console.error('Appeal response error:', error);
-    
+
     return NextResponse.json({
       success: false,
       message: 'Failed to submit appeal response',
@@ -130,9 +133,8 @@ export async function GET(request, { params }) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
-    
+
     if (!['admin', 'hr_manager', 'super_admin'].includes(decoded.role)) {
       return NextResponse.json({
         success: false,
@@ -141,7 +143,7 @@ export async function GET(request, { params }) {
     }
 
     // Check permissions
-    const hasPermission = decoded.permissions.includes('view_appeals');
+    const hasPermission = decoded.permissions?.includes('view_appeals');
     if (!hasPermission) {
       return NextResponse.json({
         success: false,
@@ -149,10 +151,10 @@ export async function GET(request, { params }) {
       }, { status: 403 });
     }
 
-    const { id: appealId } = params;
+    const { id: appealId } = await params;
 
     // Find appeal
-    const appeal = db.findAppeal(appealId);
+    const appeal = await getAppealById(appealId);
     if (!appeal) {
       return NextResponse.json({
         success: false,
@@ -161,9 +163,9 @@ export async function GET(request, { params }) {
     }
 
     // Get verifier and verification information
-    const verifier = db.findVerifierById(appeal.verifierId);
-    const verificationRecord = db.findVerificationRecord(appeal.verificationId);
-    const employee = db.findEmployee(appeal.employeeId);
+    const verifier = await findVerifierById(appeal.verifierId);
+    const verificationRecord = await findVerificationRecord(appeal.verificationId);
+    const employee = await findEmployeeById(appeal.employeeId);
 
     return NextResponse.json({
       success: true,
@@ -182,16 +184,15 @@ export async function GET(request, { params }) {
             overallStatus: verificationRecord.overallStatus,
             matchScore: verificationRecord.matchScore
           } : null,
-          comments: appeal.comments,
-          supportingDocument: appeal.supportingDocument ? {
-            filename: appeal.supportingDocument.filename,
-            originalName: appeal.supportingDocument.originalName,
-            size: appeal.supportingDocument.size,
-            mimeType: appeal.supportingDocument.mimeType
+          appealReason: appeal.appealReason,
+          comments: appeal.appealReason,
+          supportingDocument: appeal.documents?.length > 0 ? {
+            url: appeal.documents[0]
           } : null,
           mismatchedFields: appeal.mismatchedFields,
           status: appeal.status,
           hrResponse: appeal.hrResponse,
+          hrComments: appeal.hrComments,
           reviewedBy: appeal.reviewedBy,
           reviewedAt: appeal.reviewedAt,
           createdAt: appeal.createdAt
@@ -201,7 +202,7 @@ export async function GET(request, { params }) {
 
   } catch (error) {
     console.error('Get appeal details error:', error);
-    
+
     return NextResponse.json({
       success: false,
       message: 'Failed to fetch appeal details',
