@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { authenticateVerifier, extractTokenFromHeader } from '@/lib/auth';
+import { extractTokenFromHeader, verifyToken } from '@/lib/auth';
 import {
-  findVerificationRecordByVerifier,
+  findVerificationRecord,
   updateVerificationRecord,
-  findEmployee
-} from '@/lib/localStorage.service';
+  findEmployeeById
+} from '@/lib/mongodb.data.service';
 import { generateVerificationReportPDF } from '@/lib/services/pdfService';
 import { sendVerificationReportEmail } from '@/lib/services/emailService';
 
@@ -19,17 +19,14 @@ export async function POST(request) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
-    
+
     if (decoded.role !== 'verifier') {
       return NextResponse.json({
         success: false,
         message: 'Verifier access required'
       }, { status: 403 });
     }
-
-    // No database connection needed - using localStorage
 
     // Parse request body
     const body = await request.json();
@@ -43,9 +40,9 @@ export async function POST(request) {
     }
 
     // Find verification record
-    const verificationRecord = await findVerificationRecordByVerifier(verificationId, decoded.id);
+    const verificationRecord = await findVerificationRecord(verificationId);
 
-    if (!verificationRecord) {
+    if (!verificationRecord || verificationRecord.verifierId !== decoded.id) {
       return NextResponse.json({
         success: false,
         message: 'Verification record not found or you do not have permission'
@@ -53,7 +50,7 @@ export async function POST(request) {
     }
 
     // Find employee details
-    const employee = await findEmployee(verificationRecord.employeeId);
+    const employee = await findEmployeeById(verificationRecord.employeeId);
     if (!employee) {
       return NextResponse.json({
         success: false,
@@ -77,7 +74,7 @@ export async function POST(request) {
     const verificationData = {
       verificationId: verificationRecord.verificationId,
       verifiedAt: verificationRecord.verificationCompletedAt,
-      verifierName: verificationRecord.verifierName,
+      verifierName: decoded.companyName,
       overallStatus: verificationRecord.overallStatus,
       matchScore: verificationRecord.matchScore,
       comparisonResults: verificationRecord.comparisonResults.map(result => ({
@@ -124,7 +121,7 @@ export async function POST(request) {
             matchScore: verificationData.matchScore,
             summary: verificationData.summary
           },
-          verificationRecord.verifierEmail,
+          decoded.email,
           pdfResult.s3Url
         );
       } catch (emailError) {
@@ -146,7 +143,7 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('PDF generation error:', error);
-    
+
     return NextResponse.json({
       success: false,
       message: 'Failed to generate PDF report',
@@ -166,17 +163,14 @@ export async function GET(request) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
-    
+
     if (decoded.role !== 'verifier') {
       return NextResponse.json({
         success: false,
         message: 'Verifier access required'
       }, { status: 403 });
     }
-
-    // No database connection needed - using localStorage
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -190,9 +184,9 @@ export async function GET(request) {
     }
 
     // Find verification record
-    const verificationRecord = await findVerificationRecordByVerifier(verificationId, decoded.id);
+    const verificationRecord = await findVerificationRecord(verificationId);
 
-    if (!verificationRecord) {
+    if (!verificationRecord || verificationRecord.verifierId !== decoded.id) {
       return NextResponse.json({
         success: false,
         message: 'Verification record not found'
@@ -218,7 +212,7 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Get PDF report error:', error);
-    
+
     return NextResponse.json({
       success: false,
       message: 'Failed to retrieve PDF report',
@@ -245,7 +239,7 @@ function generateComparisonSummary(comparisonResults) {
   const matches = comparisonResults.filter(r => r.isMatch).length;
   const total = comparisonResults.length;
   const score = Math.round((matches / total) * 100);
-  
+
   if (score === 100) {
     return 'Perfect Match - All fields match our records';
   } else if (score >= 70) {
