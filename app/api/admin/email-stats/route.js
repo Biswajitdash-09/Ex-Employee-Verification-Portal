@@ -1,6 +1,6 @@
 /**
  * Email Statistics API Endpoint
- * Returns delivery metrics for comparing email providers (SendGrid vs Resend)
+ * Returns delivery metrics for comparing email providers (Brevo vs SendGrid)
  */
 
 import { NextResponse } from 'next/server';
@@ -44,16 +44,16 @@ export async function GET(request) {
 
         // Calculate comparison metrics
         const comparison = {
-            sendgrid: stats.find(s => s.provider === 'sendgrid') || {
-                provider: 'sendgrid',
+            brevo: stats.find(s => s.provider === 'brevo') || {
+                provider: 'brevo',
                 totalEmails: 0,
                 successCount: 0,
                 failureCount: 0,
                 successRate: 0,
                 avgResponseTime: 0
             },
-            resend: stats.find(s => s.provider === 'resend') || {
-                provider: 'resend',
+            sendgrid: stats.find(s => s.provider === 'sendgrid') || {
+                provider: 'sendgrid',
                 totalEmails: 0,
                 successCount: 0,
                 failureCount: 0,
@@ -64,10 +64,10 @@ export async function GET(request) {
 
         // Determine winner based on success rate and response time
         let recommendation = 'insufficient_data';
-        if (comparison.sendgrid.totalEmails >= 10 && comparison.resend.totalEmails >= 10) {
+        if (comparison.brevo.totalEmails >= 10 && comparison.sendgrid.totalEmails >= 10) {
+            const brevoScore = comparison.brevo.successRate - (comparison.brevo.avgResponseTime / 100);
             const sgScore = comparison.sendgrid.successRate - (comparison.sendgrid.avgResponseTime / 100);
-            const rsScore = comparison.resend.successRate - (comparison.resend.avgResponseTime / 100);
-            recommendation = sgScore >= rsScore ? 'sendgrid' : 'resend';
+            recommendation = brevoScore >= sgScore ? 'brevo' : 'sendgrid';
         }
 
         return NextResponse.json({
@@ -80,7 +80,7 @@ export async function GET(request) {
                     id: log._id,
                     provider: log.provider,
                     emailType: log.emailType,
-                    recipient: log.recipient?.substring(0, 3) + '****', // Mask email for privacy
+                    recipient: log.recipient?.substring(0, 3) + '****',
                     status: log.status,
                     responseTime: log.responseTime,
                     createdAt: log.createdAt
