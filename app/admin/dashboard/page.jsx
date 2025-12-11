@@ -3,9 +3,9 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import AppealList from '@/components/admin/AppealList';
+import ExcelExportButton from '@/components/admin/ExcelExportButton';
 import Icon from '@/components/Icon';
 import Toast from '@/components/ui/Toast';
-import { getOrCreateDashboardStats } from '@/lib/localStorage.service';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null);
@@ -21,15 +21,34 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    const loadStats = () => {
+    const loadStats = async () => {
       try {
         setLoading(true);
-        const dashboardData = getOrCreateDashboardStats();
-        
-        if (dashboardData && dashboardData.summary) {
-          setStats(dashboardData.summary);
+
+        // Get token from admin session
+        const sessionData = localStorage.getItem('admin_session');
+        const session = sessionData ? JSON.parse(sessionData) : null;
+
+        if (!session?.token) {
+          showToast('Please log in again', 'error');
+          return;
+        }
+
+        // Fetch dashboard stats from API
+        const response = await fetch('/api/admin/dashboard', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.data?.summary) {
+          setStats(data.data.summary);
         } else {
-          showToast('Failed to load dashboard data', 'error');
+          showToast(data.message || 'Failed to load dashboard data', 'error');
         }
       } catch (error) {
         console.error('Error loading dashboard stats:', error);
@@ -45,21 +64,24 @@ export default function AdminDashboardPage() {
   return (
     <>
       {toast.show && <Toast message={toast.message} type={toast.type} onClose={closeToast} />}
-      
+
       <motion.div
         className="w-full max-w-6xl mx-auto"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-base-content tracking-tight flex items-center gap-3">
-            <Icon name="LayoutDashboard" className="w-9 h-9 text-primary" />
-            Admin Dashboard
-          </h1>
-          <p className="mt-2 text-lg text-base-content/70">
-            Review and manage employee verification appeals.
-          </p>
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-base-content tracking-tight flex items-center gap-3">
+              <Icon name="LayoutDashboard" className="w-9 h-9 text-primary" />
+              Admin Dashboard
+            </h1>
+            <p className="mt-2 text-lg text-base-content/70">
+              Review and manage employee verification appeals.
+            </p>
+          </div>
+          <ExcelExportButton />
         </div>
 
         {/* Statistics Cards */}

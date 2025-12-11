@@ -154,10 +154,10 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId })
                 <div key={index} className="bg-base-100 p-3 rounded border border-base-300">
                   <div className="font-medium text-base-content/80 capitalize">{field.field.replace(/([A-Z])/g, ' $1').trim()}</div>
                   <div className="text-sm text-base-content/60 mt-1">
-                    <span className="font-medium">Your provided:</span> {field.verifierValue || 'Not provided'}
+                    <span className="font-medium">Your entry:</span> {field.verifierValue || 'Not provided'}
                   </div>
-                  <div className="text-sm text-base-content/60">
-                    <span className="font-medium">Company record:</span> {field.companyValue || 'Not available'}
+                  <div className="text-sm text-error mt-1">
+                    <span className="font-medium">Status:</span> Mismatch detected
                   </div>
                 </div>
               ))}

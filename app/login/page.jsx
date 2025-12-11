@@ -1,14 +1,17 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import LoginForm from '@/components/auth/LoginForm';
+import OtpLoginForm from '@/components/auth/OtpLoginForm';
 import Icon from '@/components/Icon';
 
 export default function VerifierLoginPage() {
+  const [loginMethod, setLoginMethod] = useState('otp'); // 'password' or 'otp'
+
   return (
-    <motion.div 
+    <motion.div
       className="flex items-center justify-center min-h-[calc(100vh-250px)] bg-base-200 py-12 px-4 sm:px-6 lg:px-8"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -17,7 +20,7 @@ export default function VerifierLoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="card bg-base-100 shadow-2xl transition-shadow duration-300 hover:shadow-primary/20">
           <div className="card-body p-8 sm:p-10">
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <div className="inline-block bg-primary/10 p-4 rounded-full">
                 <Icon name="LogIn" className="w-10 h-10 text-primary" />
               </div>
@@ -28,11 +31,33 @@ export default function VerifierLoginPage() {
                 Access your company's verification dashboard.
               </p>
             </div>
-            
-            <LoginForm userType="verifier" onLoginSuccess="/verify" />
-            
+
+            {/* Login Method Tabs */}
+            <div className="tabs tabs-boxed bg-base-200 mb-6">
+              <button
+                className={`tab flex-1 gap-2 ${loginMethod === 'otp' ? 'tab-active bg-primary text-white' : ''}`}
+                onClick={() => setLoginMethod('otp')}
+              >
+                <Icon name="Smartphone" className="w-4 h-4" />
+                OTP Login
+              </button>
+              <button
+                className={`tab flex-1 gap-2 ${loginMethod === 'password' ? 'tab-active bg-primary text-white' : ''}`}
+                onClick={() => setLoginMethod('password')}
+              >
+                <Icon name="Lock" className="w-4 h-4" />
+                Password
+              </button>
+            </div>
+
+            {loginMethod === 'otp' ? (
+              <OtpLoginForm onLoginSuccess="/verify" />
+            ) : (
+              <LoginForm userType="verifier" onLoginSuccess="/verify" />
+            )}
+
             <div className="divider my-6 text-sm">New Here?</div>
-            
+
             <p className="text-center text-sm">
               Don't have an account?{' '}
               <Link href="/" className="link link-primary font-semibold hover:underline">

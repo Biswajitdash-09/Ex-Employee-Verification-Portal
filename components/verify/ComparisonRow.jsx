@@ -41,7 +41,6 @@ const ComparisonRow = ({ field, label, verifierValue, companyValue, isMatch, col
     <tr className={`hover:bg-opacity-80 transition-colors duration-200 ${getRowClass()}`}>
       <td className="font-semibold text-base-content/80 py-4">{label}</td>
       <td className="py-4">{verifierValue}</td>
-      <td className="py-4">{companyValue}</td>
       <td className="py-4">
         {getStatusBadge()}
       </td>

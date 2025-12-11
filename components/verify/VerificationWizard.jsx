@@ -10,11 +10,13 @@ import Icon from "@/components/Icon";
 import Toast from "@/components/ui/Toast";
 import ComparisonRow from "@/components/verify/ComparisonRow";
 import AppealModal from "@/components/verify/AppealModal";
+import { VERIFICATION_COMPANIES } from "@/lib/data/companies";
 
 const VerificationWizard = () => {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     companyName: '',
+    verifyingForCompany: '', // Company for which verification is being done
     employeeId: '',
     name: '',
     entityName: '',
@@ -28,6 +30,7 @@ const VerificationWizard = () => {
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [verifier, setVerifier] = useState(null);
   const router = useRouter();
 
@@ -73,15 +76,55 @@ const VerificationWizard = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1 && !consentGiven) {
       showToast('Please provide consent to proceed.', 'error');
+      return;
+    }
+    if (step === 1 && !formData.verifyingForCompany) {
+      showToast('Please select the company for which verification is needed.', 'error');
       return;
     }
     if (step === 2 && (!formData.employeeId || !formData.name)) {
       showToast('Please fill in all required fields.', 'error');
       return;
     }
+
+    // Validate Employee ID and Name match before proceeding to step 3
+    if (step === 2) {
+      setIsValidating(true);
+      try {
+        const sessionData = localStorage.getItem('verifier_session');
+        const session = sessionData ? JSON.parse(sessionData) : null;
+
+        const response = await fetch('/api/verify/validate-employee', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.token || ''}`
+          },
+          body: JSON.stringify({
+            employeeId: formData.employeeId.trim(),
+            name: formData.name.trim()
+          })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          showToast(data.message || 'Employee ID and Name do not match. Please check and try again', 'error');
+          setIsValidating(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Validation error:', error);
+        showToast('Validation failed. Please try again.', 'error');
+        setIsValidating(false);
+        return;
+      }
+      setIsValidating(false);
+    }
+
     if (step === 3 && (!formData.entityName || !formData.dateOfJoining || !formData.dateOfLeaving || !formData.designation || !formData.exitReason)) {
       showToast('Please fill in all required fields.', 'error');
       return;
@@ -211,45 +254,81 @@ const VerificationWizard = () => {
       case 1:
         return (
           <motion.div
-            className="card bg-base-100 shadow-xl"
+            className="card bg-base-100 shadow-xl max-w-2xl mx-auto"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="card-body items-center text-center">
-              <Icon name="FileCheck2" className="w-16 h-16 text-primary mb-4" />
-              <h2 className="card-title text-2xl">Step 1: Verifier Details & Consent</h2>
-              <p className="my-4 text-base-content/70 max-w-md">
-                Confirm your company details and provide consent for verification
-              </p>
+            <div className="card-body p-6 md:p-8">
+              <div className="text-center mb-6">
+                <Icon name="FileCheck2" className="w-14 h-14 text-primary mx-auto mb-3" />
+                <h2 className="card-title text-xl md:text-2xl justify-center">Step 1: Verifier Details & Consent</h2>
+                <p className="mt-2 text-sm text-base-content/70">
+                  Select the company for which you need verification and provide consent
+                </p>
+              </div>
 
-              <div className="w-full max-w-md space-y-4">
+              <div className="space-y-5">
                 <div className="form-control">
-                  <label className="label">
-                    <span className="label-text font-semibold">Company Name</span>
+                  <label className="label pb-1">
+                    <span className="label-text font-semibold">Your Company</span>
                   </label>
-                  <div className="input input-bordered bg-base-200">
+                  <div className="input input-bordered bg-base-200 flex items-center text-sm">
                     {formData.companyName || 'Your Company'}
                   </div>
                 </div>
 
                 <div className="form-control">
-                  <label className="label cursor-pointer p-4 border rounded-lg hover:bg-base-200">
-                    <span className="label-text font-semibold">
-                      I confirm that I have received consent from the candidate to verify their employment details
+                  <label className="label pb-1">
+                    <span className="label-text font-semibold">Verification For <span className="text-error">*</span></span>
+                  </label>
+                  <select
+                    name="verifyingForCompany"
+                    value={formData.verifyingForCompany}
+                    onChange={handleFormChange}
+                    className="select select-bordered w-full"
+                    required
+                  >
+                    <option value="">Select company for verification</option>
+                    {VERIFICATION_COMPANIES.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="label pt-1">
+                    <span className="label-text-alt text-base-content/60 text-xs">
+                      The company whose ex-employee you need to verify
                     </span>
+                  </label>
+                </div>
+
+                {formData.verifyingForCompany && (
+                  <div className="alert alert-info text-sm py-3">
+                    <Icon name="Info" className="w-4 h-4 shrink-0" />
+                    <span>
+                      You are verifying employment for: <strong>{VERIFICATION_COMPANIES.find(c => c.id === formData.verifyingForCompany)?.name}</strong>
+                    </span>
+                  </div>
+                )}
+
+                <div className="form-control">
+                  <label className="label cursor-pointer p-4 border rounded-lg hover:bg-base-200 gap-3 justify-start">
                     <input
                       type="checkbox"
                       checked={consentGiven}
                       onChange={(e) => setConsentGiven(e.target.checked)}
-                      className="checkbox checkbox-primary"
+                      className="checkbox checkbox-primary shrink-0"
                     />
+                    <span className="label-text text-sm leading-relaxed">
+                      I confirm that I have received consent from the candidate to verify their employment details
+                    </span>
                   </label>
                 </div>
               </div>
 
-              <div className="card-actions justify-end w-full mt-6">
+              <div className="mt-6">
                 <button
-                  className="btn w-full max-w-md"
+                  className="btn w-full"
                   style={{ backgroundColor: '#007A3D', borderColor: '#007A3D', color: 'white', fontFamily: "'Montserrat', sans-serif" }}
                   disabled={!consentGiven}
                   onClick={handleNext}
@@ -307,8 +386,8 @@ const VerificationWizard = () => {
                 <button className="btn" style={{ backgroundColor: '#E6F3EF', color: '#007A3D', fontFamily: "'Montserrat', sans-serif" }} onClick={handleBack}>
                   <Icon name="ArrowLeft" className="w-4 h-4" /> Back
                 </button>
-                <button className="btn" style={{ backgroundColor: '#007A3D', borderColor: '#007A3D', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={handleNext}>
-                  Next <Icon name="ArrowRight" className="w-4 h-4" />
+                <button className="btn" style={{ backgroundColor: '#007A3D', borderColor: '#007A3D', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={handleNext} disabled={isValidating}>
+                  {isValidating ? <span className="loading loading-spinner loading-sm"></span> : 'Next'} <Icon name="ArrowRight" className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -419,7 +498,6 @@ const VerificationWizard = () => {
                       <tr>
                         <th>Field</th>
                         <th>Entered by Verifier</th>
-                        <th>Official Record</th>
                         <th>Status</th>
                       </tr>
                     </thead>
@@ -443,14 +521,14 @@ const VerificationWizard = () => {
                 </div>
 
                 <div className="card-actions flex-wrap justify-center gap-4 mt-8">
-                  <button className="btn" style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={() => setIsAppealModalOpen(true)}>
-                    <Icon name="FileWarning" className="w-4 h-4" /> Raise Appeal
-                  </button>
+                  {/* Only show Raise Appeal if there is a mismatch */}
+                  {verificationResult.comparisonResults?.some(r => !r.isMatch) && (
+                    <button className="btn" style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={() => setIsAppealModalOpen(true)}>
+                      <Icon name="FileWarning" className="w-4 h-4" /> Raise Appeal
+                    </button>
+                  )}
                   <button className="btn" style={{ backgroundColor: '#004F9E', borderColor: '#004F9E', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={handleDownloadReport}>
                     <Icon name="Download" className="w-4 h-4" /> Download Report
-                  </button>
-                  <button className="btn" style={{ backgroundColor: '#6366f1', borderColor: '#6366f1', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={handleSendEmail}>
-                    <Icon name="Mail" className="w-4 h-4" /> Send Email
                   </button>
                   <button className="btn" style={{ backgroundColor: '#E6F3EF', color: '#007A3D', fontFamily: "'Montserrat', sans-serif" }} onClick={handleStartOver}>
                     <Icon name="RotateCw" className="w-4 h-4" /> Start New Verification

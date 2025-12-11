@@ -149,6 +149,27 @@ export default function AppealDetail({ appealId }) {
             <p className="bg-base-200 p-4 rounded-lg whitespace-pre-wrap text-base-content/90">{appeal.comments || appeal.appealReason || 'No comments provided'}</p>
           </div>
 
+          {/* Show HR Response for closed appeals */}
+          {appeal.status !== 'pending' && appeal.hrResponse && (
+            <>
+              <div className="divider"></div>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                  <Icon name="MessageCircle" className="w-5 h-5 text-primary" />
+                  HR Comments
+                </h3>
+                <div className={`p-4 rounded-lg ${appeal.status === 'approved' ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'}`}>
+                  <p className="whitespace-pre-wrap text-base-content/90">{appeal.hrResponse}</p>
+                  {appeal.reviewedAt && (
+                    <p className="text-xs text-base-content/60 mt-2">
+                      Reviewed on: {new Date(appeal.reviewedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
           {appeal.file && (
             <>
               <div className="divider"></div>
@@ -208,20 +229,25 @@ export default function AppealDetail({ appealId }) {
               ) : (
                 <div className="bg-base-200 rounded-lg p-6">
                   <h3 className="text-lg font-semibold mb-4">
-                    HR Response - {selectedAction === 'approved' ? 'Approve Appeal' : 'Reject Appeal'}
+                    HR Comments - {selectedAction === 'approved' ? 'Approve Appeal' : 'Reject Appeal'}
                   </h3>
 
                   <div className="form-control mb-4">
                     <label className="label">
-                      <span className="label-text font-semibold">Response Details</span>
+                      <span className="label-text font-semibold">HR Comments <span className="text-error">*</span></span>
                     </label>
                     <textarea
                       className="textarea textarea-bordered h-24"
-                      placeholder="Provide detailed explanation for your decision..."
+                      placeholder="Enter your comments for the verifier explaining your decision..."
                       value={hrResponseText}
                       onChange={(e) => setHrResponseText(e.target.value)}
                       required
                     ></textarea>
+                    <label className="label">
+                      <span className="label-text-alt text-base-content/60">
+                        This comment will be sent to the verifier via email
+                      </span>
+                    </label>
                   </div>
 
                   <div className="card-actions justify-end gap-2">
