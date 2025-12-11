@@ -189,6 +189,7 @@ export async function GET(request, { params }) {
           supportingDocument: appeal.documents?.length > 0 ? {
             url: appeal.documents[0]
           } : null,
+          documents: appeal.documents || [],
           mismatchedFields: appeal.mismatchedFields,
           status: appeal.status,
           hrResponse: appeal.hrResponse,
