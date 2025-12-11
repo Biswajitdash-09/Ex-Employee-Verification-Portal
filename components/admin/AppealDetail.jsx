@@ -170,7 +170,77 @@ export default function AppealDetail({ appealId }) {
             </>
           )}
 
-          {appeal.file && (
+          {/* Supporting Documents Section */}
+          {(appeal.documents && appeal.documents.length > 0) && (
+            <>
+              <div className="divider"></div>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                  <Icon name="Paperclip" className="w-5 h-5" />
+                  Supporting Documents ({appeal.documents.length})
+                </h3>
+                <div className="space-y-3">
+                  {appeal.documents.map((docUrl, index) => {
+                    const fileName = docUrl.split('/').pop() || `Document ${index + 1}`;
+                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(docUrl);
+                    const isPdf = /\.pdf$/i.test(docUrl);
+
+                    return (
+                      <div key={index} className="bg-base-200 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Icon
+                              name={isPdf ? "FileText" : isImage ? "Image" : "File"}
+                              className="w-6 h-6 text-primary"
+                            />
+                            <div>
+                              <p className="font-semibold text-sm truncate max-w-xs">{fileName}</p>
+                              <p className="text-xs text-base-content/60">
+                                {isPdf ? 'PDF Document' : isImage ? 'Image' : 'Document'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <a
+                              href={docUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-ghost"
+                            >
+                              <Icon name="ExternalLink" className="w-4 h-4" />
+                              View
+                            </a>
+                            <a
+                              href={docUrl}
+                              download={fileName}
+                              className="btn btn-sm btn-primary"
+                            >
+                              <Icon name="Download" className="w-4 h-4" />
+                              Download
+                            </a>
+                          </div>
+                        </div>
+                        {/* Preview for images */}
+                        {isImage && (
+                          <div className="mt-3 border border-base-300 rounded-lg overflow-hidden">
+                            <img
+                              src={docUrl}
+                              alt={fileName}
+                              className="max-h-48 w-auto mx-auto"
+                              onError={(e) => e.target.style.display = 'none'}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Legacy file support */}
+          {appeal.file && !appeal.documents?.length && (
             <>
               <div className="divider"></div>
               <div className="mb-6">
@@ -190,7 +260,7 @@ export default function AppealDetail({ appealId }) {
                   </div>
                   <button className="btn btn-sm btn-ghost" disabled>
                     <Icon name="Download" className="w-4 h-4" />
-                    Download (Not Implemented)
+                    Download
                   </button>
                 </div>
               </div>
