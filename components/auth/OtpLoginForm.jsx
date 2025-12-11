@@ -221,8 +221,8 @@ const OtpLoginForm = ({ onLoginSuccess }) => {
                             <Icon name="KeyRound" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
                             <input
                                 type="text"
-                                placeholder="Enter 6-digit OTP"
-                                className="input input-bordered w-full pl-10 text-center text-2xl tracking-[0.5em] font-mono"
+                                placeholder="000000"
+                                className="input input-bordered w-full pl-10 text-center text-2xl tracking-widest font-mono"
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 disabled={isLoading}
