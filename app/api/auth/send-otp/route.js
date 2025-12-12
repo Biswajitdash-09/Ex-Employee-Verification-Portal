@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateOTP, storeOTP, canRequestOTP, OTP_EXPIRY_MINUTES } from '@/lib/services/otp.service';
-import { sendOTPEmail } from '@/lib/services/emailService';
+import { sendOTPEmailSMTP } from '@/lib/services/smtpService';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -8,6 +8,8 @@ const isDev = process.env.NODE_ENV === 'development';
  * Send OTP to verifier email
  * POST /api/auth/send-otp
  * Body: { email: string }
+ * 
+ * Uses SMTP for reliable email delivery
  */
 export async function POST(request) {
     try {
@@ -63,7 +65,7 @@ export async function POST(request) {
             }, { status: 500 });
         }
 
-        // Send email asynchronously (fire-and-forget)
+        // Send email via SMTP (fire-and-forget)
         sendEmailAsync(email, otp);
 
         // Return success immediately
@@ -74,9 +76,7 @@ export async function POST(request) {
         }, { status: 200 });
 
     } catch (error) {
-        if (isDev) {
-            console.error('Send OTP error:', error);
-        }
+        console.error('[OTP] Send OTP error:', error.message);
 
         return NextResponse.json({
             success: false,
@@ -87,37 +87,25 @@ export async function POST(request) {
 }
 
 /**
- * Send email with logging
- * Errors are always logged to help debug production issues
+ * Send email via SMTP with logging
  */
 async function sendEmailAsync(email, otp) {
-    if (isDev) {
-        console.log(`[OTP] Sending OTP to ${email}`);
-    }
+    console.log(`[OTP] Sending OTP to ${email} via SMTP`);
 
     try {
-        // Check if any email provider is configured
-        const hasEmailProvider = process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY;
-
-        if (!hasEmailProvider) {
-            // ALWAYS log this error - critical for debugging production
-            console.error(`[OTP] ❌ CRITICAL: No email provider API key configured!`);
-            console.error(`[OTP] Check BREVO_API_KEY, SENDGRID_API_KEY, or RESEND_API_KEY in environment variables`);
+        // Check if SMTP is configured
+        if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+            console.error(`[OTP] ❌ CRITICAL: SMTP credentials not configured!`);
+            console.error(`[OTP] Set SMTP_USER and SMTP_PASS in environment variables`);
             return;
         }
 
-        // Call the email service
-        const result = await sendOTPEmail(email, otp);
-
-        if (isDev) {
-            console.log(`[OTP] ✅ Email sent successfully to ${email}`);
-        }
+        // Call the SMTP email service
+        const result = await sendOTPEmailSMTP(email, otp);
+        console.log(`[OTP] ✅ Email sent via SMTP to ${email}, messageId: ${result.messageId}`);
 
     } catch (error) {
-        // ALWAYS log email failures - critical for production debugging
-        console.error(`[OTP] ❌ Failed to send email to ${email}:`, error.message);
-        if (error.response) {
-            console.error(`[OTP] API Response:`, error.response?.body || error.response);
-        }
+        // ALWAYS log email failures
+        console.error(`[OTP] ❌ SMTP Failed to send email to ${email}:`, error.message);
     }
 }
