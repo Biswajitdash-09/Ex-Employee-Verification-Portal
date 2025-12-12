@@ -63,11 +63,10 @@ export async function POST(request) {
             }, { status: 500 });
         }
 
-        // ⚡ OPTIMIZATION: Send email asynchronously (fire-and-forget)
-        // This allows immediate API response without waiting for email delivery
+        // Send email asynchronously (fire-and-forget)
         sendEmailAsync(email, otp);
 
-        // Return success immediately - don't wait for email to send
+        // Return success immediately
         return NextResponse.json({
             success: true,
             message: `OTP sent to ${email}. Valid for ${OTP_EXPIRY_MINUTES} minutes.`,
@@ -86,33 +85,42 @@ export async function POST(request) {
 }
 
 /**
- * Send email asynchronously with timeout handling
- * This runs in the background and doesn't block the API response
+ * Send email with detailed logging for debugging
  */
 async function sendEmailAsync(email, otp) {
+    console.log(`\n========== OTP EMAIL DEBUG ==========`);
+    console.log(`[OTP] Target email: ${email}`);
+    console.log(`[OTP] OTP code: ${otp}`);
+    console.log(`[OTP] BREVO_API_KEY exists: ${!!process.env.BREVO_API_KEY}`);
+    console.log(`[OTP] SENDGRID_API_KEY exists: ${!!process.env.SENDGRID_API_KEY}`);
+    console.log(`[OTP] EMAIL_PROVIDER: ${process.env.EMAIL_PROVIDER}`);
+    console.log(`[OTP] FROM_EMAIL: ${process.env.FROM_EMAIL}`);
+
     try {
         // Check if any email provider is configured
         const hasEmailProvider = process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY;
 
         if (!hasEmailProvider) {
-            console.warn(`[OTP] No email provider configured. OTP for ${email}: ${otp}`);
+            console.error(`[OTP] ❌ No email provider API key configured!`);
+            console.log(`[OTP] Fallback - OTP for ${email}: ${otp}`);
             return;
         }
 
-        console.log(`[OTP] Sending OTP to ${email}...`);
+        console.log(`[OTP] 📧 Calling sendOTPEmail...`);
 
-        // Set a 10-second timeout for email sending (increased for reliability)
-        const emailPromise = sendOTPEmail(email, otp);
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Email timeout after 10s')), 10000)
-        );
+        // Call the email service
+        const result = await sendOTPEmail(email, otp);
 
-        await Promise.race([emailPromise, timeoutPromise]);
-        console.log(`[OTP] ✓ Successfully sent to ${email}`);
+        console.log(`[OTP] ✅ Email sent successfully!`);
+        console.log(`[OTP] Result:`, JSON.stringify(result, null, 2));
+        console.log(`========== END OTP EMAIL DEBUG ==========\n`);
 
     } catch (error) {
-        // Log error but don't fail the request - email is not critical for OTP flow
-        console.error(`[OTP] ✗ Failed to send to ${email}:`, error.message);
+        console.error(`[OTP] ❌ Failed to send email!`);
+        console.error(`[OTP] Error name: ${error.name}`);
+        console.error(`[OTP] Error message: ${error.message}`);
+        console.error(`[OTP] Full error:`, error);
         console.log(`[OTP] Fallback - OTP for ${email}: ${otp}`);
+        console.log(`========== END OTP EMAIL DEBUG ==========\n`);
     }
 }
