@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { generateOTP, storeOTP, canRequestOTP, OTP_EXPIRY_MINUTES } from '@/lib/services/otp.service';
 import { sendOTPEmail } from '@/lib/services/emailService';
 
+const isDev = process.env.NODE_ENV === 'development';
+
 /**
  * Send OTP to verifier email
  * POST /api/auth/send-otp
  * Body: { email: string }
- * 
- * Optimized for fast response - uses fire-and-forget pattern for email sending
  */
 export async function POST(request) {
     try {
@@ -74,53 +74,48 @@ export async function POST(request) {
         }, { status: 200 });
 
     } catch (error) {
-        console.error('Send OTP error:', error);
+        if (isDev) {
+            console.error('Send OTP error:', error);
+        }
 
         return NextResponse.json({
             success: false,
             message: 'Failed to send OTP. Please try again.',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            error: isDev ? error.message : undefined
         }, { status: 500 });
     }
 }
 
 /**
- * Send email with detailed logging for debugging
+ * Send email with logging (development only for detailed logs)
  */
 async function sendEmailAsync(email, otp) {
-    console.log(`\n========== OTP EMAIL DEBUG ==========`);
-    console.log(`[OTP] Target email: ${email}`);
-    console.log(`[OTP] OTP code: ${otp}`);
-    console.log(`[OTP] BREVO_API_KEY exists: ${!!process.env.BREVO_API_KEY}`);
-    console.log(`[OTP] SENDGRID_API_KEY exists: ${!!process.env.SENDGRID_API_KEY}`);
-    console.log(`[OTP] EMAIL_PROVIDER: ${process.env.EMAIL_PROVIDER}`);
-    console.log(`[OTP] FROM_EMAIL: ${process.env.FROM_EMAIL}`);
+    if (isDev) {
+        console.log(`[OTP] Sending OTP to ${email}`);
+    }
 
     try {
         // Check if any email provider is configured
         const hasEmailProvider = process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY;
 
         if (!hasEmailProvider) {
-            console.error(`[OTP] ❌ No email provider API key configured!`);
-            console.log(`[OTP] Fallback - OTP for ${email}: ${otp}`);
+            if (isDev) {
+                console.warn(`[OTP] No email provider configured. OTP for ${email}: ${otp}`);
+            }
             return;
         }
-
-        console.log(`[OTP] 📧 Calling sendOTPEmail...`);
 
         // Call the email service
         const result = await sendOTPEmail(email, otp);
 
-        console.log(`[OTP] ✅ Email sent successfully!`);
-        console.log(`[OTP] Result:`, JSON.stringify(result, null, 2));
-        console.log(`========== END OTP EMAIL DEBUG ==========\n`);
+        if (isDev) {
+            console.log(`[OTP] ✅ Email sent successfully to ${email}`);
+        }
 
     } catch (error) {
-        console.error(`[OTP] ❌ Failed to send email!`);
-        console.error(`[OTP] Error name: ${error.name}`);
-        console.error(`[OTP] Error message: ${error.message}`);
-        console.error(`[OTP] Full error:`, error);
-        console.log(`[OTP] Fallback - OTP for ${email}: ${otp}`);
-        console.log(`========== END OTP EMAIL DEBUG ==========\n`);
+        if (isDev) {
+            console.error(`[OTP] ❌ Failed to send email to ${email}:`, error.message);
+            console.log(`[OTP] Fallback - OTP for ${email}: ${otp}`);
+        }
     }
 }

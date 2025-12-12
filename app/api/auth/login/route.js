@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
 import { schemas } from '@/lib/validation';
 import { generateToken } from '@/lib/auth';
-import { findVerifierByEmail, addVerifier, updateVerifier } from '@/lib/mongodb.data.service';
+import { findVerifierByEmail, updateVerifier } from '@/lib/mongodb.data.service';
 import bcrypt from 'bcryptjs';
 
-// Test configuration
-const TEST_CONFIG = {
-  TEST_EMAIL: 'testverifier@company.test',
-  TEST_PASSWORD: 'TestVerifier@2024!',
-  BYPASS_TOKEN: 'VERIFIER_TEST_BYPASS',
-  TEST_MODE_TOKEN: 'TEST_BYPASS_2024!'
-};
+// Test mode is controlled by environment variable - disabled in production
+const isTestModeEnabled = process.env.NODE_ENV === 'development' && process.env.ENABLE_TEST_MODE === 'true';
 
 export async function POST(request) {
   try {
@@ -18,10 +13,7 @@ export async function POST(request) {
     const body = await request.json();
     const { error, value } = schemas.verifierLogin.validate(body);
 
-    // Allow test bypass to skip validation for test credentials
-    const isTestAttempt = body.email === TEST_CONFIG.TEST_EMAIL;
-
-    if (error && !isTestAttempt) {
+    if (error) {
       return NextResponse.json({
         success: false,
         message: 'Validation failed',
@@ -29,100 +21,18 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    const { email, password, bypassToken, testMode } = body;
-
-    // Check for test mode bypass
-    if (isTestAttempt && (
-      password === TEST_CONFIG.TEST_PASSWORD ||
-      (bypassToken === TEST_CONFIG.BYPASS_TOKEN) ||
-      (testMode === TEST_CONFIG.TEST_MODE_TOKEN)
-    )) {
-      console.log('🧪 Test mode bypass activated for verifier login');
-
-      // Find or create test verifier
-      let verifier = await findVerifierByEmail(TEST_CONFIG.TEST_EMAIL);
-
-      if (!verifier) {
-        // Create test verifier if not exists
-        verifier = await addVerifier({
-          companyName: 'Test Company Inc',
-          email: TEST_CONFIG.TEST_EMAIL,
-          password: 'bypassed', // Doesn't matter for test mode
-          isEmailVerified: true,
-          isActive: true,
-          testMode: true,
-          bypassToken: TEST_CONFIG.BYPASS_TOKEN
-        });
-        // Convert Mongoose document to plain object
-        verifier = verifier.toObject ? verifier.toObject() : verifier;
-      } else {
-        // Update verifier to ensure test mode is enabled
-        await updateVerifier(verifier._id.toString(), {
-          isEmailVerified: true,
-          isActive: true,
-          testMode: true,
-          bypassToken: TEST_CONFIG.BYPASS_TOKEN
-        });
-      }
-
-      // Update last login time
-      const updatedVerifier = await updateVerifier(verifier._id.toString(), {
-        lastLoginAt: new Date()
-      });
-
-      // Generate JWT token with test mode indicator
-      const token = generateToken({
-        id: verifier._id.toString(),
-        email: verifier.email,
-        companyName: verifier.companyName,
-        role: 'verifier',
-        testMode: true,
-        bypassToken: TEST_CONFIG.BYPASS_TOKEN
-      });
-
-      // Return response without sensitive data
-      const verifierResponse = {
-        id: verifier._id.toString(),
-        companyName: verifier.companyName,
-        email: verifier.email,
-        isEmailVerified: true, // Bypass email verification in test mode
-        lastLoginAt: updatedVerifier?.lastLoginAt || new Date(),
-        createdAt: verifier.createdAt,
-        testMode: true // Indicate this is test mode
-      };
-
-      return NextResponse.json({
-        success: true,
-        message: 'Test login successful - Test mode activated',
-        data: {
-          verifier: verifierResponse,
-          token,
-          testMode: true
-        }
-      }, { status: 200 });
-    }
-
     // Normal authentication flow
     const { email: normalEmail, password: normalPassword } = value;
 
-    // Debug: Log login attempt and check storage
-    console.log('🔐 Login attempt for:', normalEmail.toLowerCase());
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 Login attempt for:', normalEmail.toLowerCase());
+    }
 
     const verifier = await findVerifierByEmail(normalEmail.toLowerCase());
 
-    // Debug: Log verifier lookup result
-    console.log('🔍 Verifier lookup result:', verifier ? 'FOUND' : 'NOT FOUND');
-    if (!verifier) {
-      console.log('❌ Login failed: No verifier found with email', normalEmail.toLowerCase());
-      console.log('💡 Tip: Check if registration completed successfully');
-    } else {
-      console.log('✅ Verifier found:', {
-        id: verifier._id.toString(),
-        email: verifier.email,
-        companyName: verifier.companyName,
-        hasPassword: !!verifier.password,
-        passwordStartsWith: verifier.password?.substring(0, 4)
-      });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Verifier lookup result:', verifier ? 'FOUND' : 'NOT FOUND');
     }
 
     if (!verifier) {
@@ -140,14 +50,17 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
-    // Verify password - handle both bcrypt and plaintext for demo
+    // Verify password - only bcrypt hashed passwords are supported
     let isPasswordValid = false;
-    if (verifier.password.startsWith('$2') || verifier.password.startsWith('$2a') || verifier.password.startsWith('$2b')) {
+    if (verifier.password && (verifier.password.startsWith('$2') || verifier.password.startsWith('$2a') || verifier.password.startsWith('$2b'))) {
       // Hashed password - use bcrypt
       isPasswordValid = await bcrypt.compare(normalPassword, verifier.password);
     } else {
-      // Plain text password for demo
-      isPasswordValid = normalPassword === verifier.password;
+      // No valid password hash found - reject login
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ Password is not properly hashed for user:', normalEmail);
+      }
+      isPasswordValid = false;
     }
 
     if (!isPasswordValid) {
@@ -167,8 +80,7 @@ export async function POST(request) {
       id: verifier._id.toString(),
       email: verifier.email,
       companyName: verifier.companyName,
-      role: 'verifier',
-      testMode: verifier.testMode || false
+      role: 'verifier'
     });
 
     // Return response without sensitive data
@@ -176,24 +88,24 @@ export async function POST(request) {
       id: verifier._id.toString(),
       companyName: verifier.companyName,
       email: verifier.email,
-      isEmailVerified: verifier.isEmailVerified || verifier.testMode, // Auto-verify in test mode
+      isEmailVerified: verifier.isEmailVerified,
       lastLoginAt: updatedVerifier?.lastLoginAt || verifier.lastLoginAt,
-      createdAt: verifier.createdAt,
-      testMode: verifier.testMode || false
+      createdAt: verifier.createdAt
     };
 
     return NextResponse.json({
       success: true,
-      message: verifier.testMode ? 'Test login successful' : 'Login successful',
+      message: 'Login successful',
       data: {
         verifier: verifierResponse,
-        token,
-        testMode: verifier.testMode || false
+        token
       }
     }, { status: 200 });
 
   } catch (error) {
-    console.error('Login error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Login error:', error);
+    }
 
     return NextResponse.json({
       success: false,

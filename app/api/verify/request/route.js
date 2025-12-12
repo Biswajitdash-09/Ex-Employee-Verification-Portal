@@ -11,14 +11,14 @@ import {
 } from '@/lib/mongodb.data.service';
 import VerificationRecord from '@/lib/models/VerificationRecord.js';
 
+const isDev = process.env.NODE_ENV === 'development';
+
 export async function POST(request) {
   try {
     // Authenticate the verifier
     const token = extractTokenFromHeader(request);
-    console.log('Verify Request - Token received:', !!token);
 
     if (!token) {
-      console.log('Verify Request - No token found in headers');
       return NextResponse.json({
         success: false,
         message: 'Access token is required'
@@ -29,17 +29,14 @@ export async function POST(request) {
     let decoded;
     try {
       decoded = verifyToken(token);
-      console.log('Verify Request - Token decoded successfully:', decoded);
 
       if (decoded.role !== 'verifier') {
-        console.log('Verify Request - Invalid role:', decoded.role);
         return NextResponse.json({
           success: false,
           message: 'Verifier access required'
         }, { status: 403 });
       }
     } catch (tokenError) {
-      console.error('Verify Request - Token verification failed:', tokenError.message);
       return NextResponse.json({
         success: false,
         message: 'Invalid or expired token'
@@ -131,7 +128,7 @@ export async function POST(request) {
     }, { status: 200 });
 
   } catch (error) {
-    console.error('Verification request error:', error);
+    if (isDev) console.error('Verification request error:', error);
 
     return NextResponse.json({
       success: false,
@@ -233,7 +230,7 @@ export async function GET(request) {
     }, { status: 200 });
 
   } catch (error) {
-    console.error('GET verification error:', error);
+    if (isDev) console.error('GET verification error:', error);
 
     return NextResponse.json({
       success: false,

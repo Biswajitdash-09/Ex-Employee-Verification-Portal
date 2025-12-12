@@ -20,14 +20,17 @@ export async function POST(request) {
 
     const { username, password } = value;
 
-    // Debug: Log login attempt
-    console.log('🔐 Admin login attempt for:', username);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 Admin login attempt for:', username);
+    }
 
     // Try to find admin by username
     let admin = await findAdminByUsername(username);
 
-    // Debug: Log admin lookup result
-    console.log('🔍 Admin lookup result:', admin ? 'FOUND' : 'NOT FOUND');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Admin lookup result:', admin ? 'FOUND' : 'NOT FOUND');
+    }
 
     if (!admin) {
       return NextResponse.json({
@@ -44,14 +47,17 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
-    // Verify password - handle both bcrypt and plaintext for demo
+    // Verify password - only bcrypt hashed passwords are supported
     let isPasswordValid = false;
-    if (admin.password.startsWith('$2') || admin.password.startsWith('$2a') || admin.password.startsWith('$2b')) {
+    if (admin.password && (admin.password.startsWith('$2') || admin.password.startsWith('$2a') || admin.password.startsWith('$2b'))) {
       // Hashed password - use bcrypt
       isPasswordValid = await bcrypt.compare(password, admin.password);
     } else {
-      // Plain text password for demo
-      isPasswordValid = password === admin.password;
+      // No valid password hash found - reject login
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ Admin password is not properly hashed for:', username);
+      }
+      isPasswordValid = false;
     }
 
     if (!isPasswordValid) {
@@ -71,8 +77,7 @@ export async function POST(request) {
       email: admin.email,
       fullName: admin.fullName,
       role: admin.role,
-      permissions: admin.permissions,
-      testMode: admin.testMode || false
+      permissions: admin.permissions
     });
 
     // Return response without sensitive data
@@ -85,24 +90,26 @@ export async function POST(request) {
       department: admin.department,
       permissions: admin.permissions,
       lastLoginAt: new Date(),
-      createdAt: admin.createdAt,
-      testMode: admin.testMode || false
+      createdAt: admin.createdAt
     };
 
-    console.log('✅ Admin login successful:', admin.username);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Admin login successful:', admin.username);
+    }
 
     return NextResponse.json({
       success: true,
-      message: admin.testMode ? 'Test admin login successful' : 'Admin login successful',
+      message: 'Admin login successful',
       data: {
         admin: adminResponse,
-        token,
-        testMode: admin.testMode || false
+        token
       }
     }, { status: 200 });
 
   } catch (error) {
-    console.error('Admin login error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Admin login error:', error);
+    }
 
     return NextResponse.json({
       success: false,
