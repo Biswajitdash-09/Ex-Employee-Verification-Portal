@@ -35,17 +35,66 @@ const VerificationWizard = () => {
   const router = useRouter();
 
   useEffect(() => {
-    const sessionData = localStorage.getItem('verifier_session');
-    console.log('VerificationWizard: Checking session data:', sessionData);
+    const validateAndSetSession = () => {
+      const sessionData = localStorage.getItem('verifier_session');
+      console.log('VerificationWizard: Checking session data:', sessionData);
 
-    if (sessionData) {
+      if (!sessionData) {
+        showToast('You must be logged in to perform a verification.', 'error');
+        router.push('/login');
+        return;
+      }
+
       try {
         const parsedSession = JSON.parse(sessionData);
         console.log('VerificationWizard: Parsed session:', parsedSession);
 
+        // Validate token exists
         if (!parsedSession.token) {
           console.error('VerificationWizard: No token in session');
+          localStorage.removeItem('verifier_session');
           showToast('Your session is invalid (no token), please log in again.', 'error');
+          router.push('/login');
+          return;
+        }
+
+        // Validate token is a proper JWT (has 3 parts)
+        const tokenParts = parsedSession.token.split('.');
+        if (tokenParts.length !== 3) {
+          console.error('VerificationWizard: Invalid token format');
+          localStorage.removeItem('verifier_session');
+          showToast('Your session is corrupted, please log in again.', 'error');
+          router.push('/login');
+          return;
+        }
+
+        // Check token expiry (decode payload and check exp)
+        try {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          const now = Math.floor(Date.now() / 1000);
+
+          if (payload.exp && payload.exp < now) {
+            console.error('VerificationWizard: Token expired');
+            localStorage.removeItem('verifier_session');
+            showToast('Your session has expired, please log in again.', 'error');
+            router.push('/login');
+            return;
+          }
+
+          // Check if role is verifier
+          if (payload.role !== 'verifier') {
+            console.error('VerificationWizard: Invalid role in token:', payload.role);
+            localStorage.removeItem('verifier_session');
+            showToast('Invalid session role, please log in again as a verifier.', 'error');
+            router.push('/login');
+            return;
+          }
+
+          console.log('VerificationWizard: Token valid, expires at:', new Date(payload.exp * 1000));
+        } catch (decodeError) {
+          console.error('VerificationWizard: Failed to decode token:', decodeError);
+          localStorage.removeItem('verifier_session');
+          showToast('Your session is corrupted, please log in again.', 'error');
           router.push('/login');
           return;
         }
@@ -54,13 +103,13 @@ const VerificationWizard = () => {
         setFormData(prev => ({ ...prev, companyName: parsedSession.companyName || '' }));
       } catch (e) {
         console.error("Failed to parse verifier session", e);
+        localStorage.removeItem('verifier_session');
         showToast('Your session is invalid, please log in again.', 'error');
         router.push('/login');
       }
-    } else {
-      showToast('You must be logged in to perform a verification.', 'error');
-      router.push('/login');
-    }
+    };
+
+    validateAndSetSession();
   }, [router]);
 
   const showToast = (message, type) => {
@@ -527,9 +576,6 @@ const VerificationWizard = () => {
                       <Icon name="FileWarning" className="w-4 h-4" /> Raise Appeal
                     </button>
                   )}
-                  <button className="btn" style={{ backgroundColor: '#004F9E', borderColor: '#004F9E', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={handleDownloadReport}>
-                    <Icon name="Download" className="w-4 h-4" /> Download Report
-                  </button>
                   <button className="btn" style={{ backgroundColor: '#E6F3EF', color: '#007A3D', fontFamily: "'Montserrat', sans-serif" }} onClick={handleStartOver}>
                     <Icon name="RotateCw" className="w-4 h-4" /> Start New Verification
                   </button>

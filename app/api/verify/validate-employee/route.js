@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server';
 import { extractTokenFromHeader, verifyToken } from '@/lib/auth';
-import { findEmployeeById } from '@/lib/mongodb.data.service';
+import {
+    findEmployeeById,
+    isVerificationBlocked,
+    incrementVerificationAttempt,
+    resetVerificationAttempt,
+    getBlockedMessage,
+    getVerificationAttempt
+} from '@/lib/mongodb.data.service';
+import { VERIFICATION_ATTEMPT_CONFIG } from '@/lib/models/VerificationAttempt';
 
 /**
  * Validate Employee ID and Name match before proceeding to next step
  * POST /api/verify/validate-employee
  * Body: { employeeId: string, name: string }
+ * 
+ * Features:
+ * - Blocks after 3 consecutive failed attempts per verifier+employee
+ * - Resets count on successful validation
  */
 export async function POST(request) {
     try {
@@ -49,13 +61,38 @@ export async function POST(request) {
             }, { status: 400 });
         }
 
-        // Find employee in MongoDB (case-insensitive search)
-        const employee = await findEmployeeById(employeeId.toUpperCase().trim());
+        const normalizedEmployeeId = employeeId.toUpperCase().trim();
 
-        if (!employee) {
+        // Check if verifier is blocked for this employee
+        const isBlocked = await isVerificationBlocked(decoded.id, normalizedEmployeeId);
+        if (isBlocked) {
             return NextResponse.json({
                 success: false,
-                message: 'Employee ID and Name do not match. Please check and try again'
+                message: getBlockedMessage(),
+                isBlocked: true
+            }, { status: 403 });
+        }
+
+        // Find employee in MongoDB
+        const employee = await findEmployeeById(normalizedEmployeeId);
+
+        if (!employee) {
+            // Increment failed attempt
+            const attemptResult = await incrementVerificationAttempt(decoded.id, normalizedEmployeeId);
+            const remainingAttempts = VERIFICATION_ATTEMPT_CONFIG.MAX_ATTEMPTS - attemptResult.attemptCount;
+
+            if (attemptResult.justBlocked) {
+                return NextResponse.json({
+                    success: false,
+                    message: getBlockedMessage(),
+                    isBlocked: true
+                }, { status: 403 });
+            }
+
+            return NextResponse.json({
+                success: false,
+                message: `Employee ID and Name do not match. Please check and try again. (${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining)`,
+                remainingAttempts
             }, { status: 404 });
         }
 
@@ -70,13 +107,28 @@ export async function POST(request) {
             submittedName.split(' ').join('') === officialName.split(' ').join('');
 
         if (!namesMatch) {
+            // Increment failed attempt
+            const attemptResult = await incrementVerificationAttempt(decoded.id, normalizedEmployeeId);
+            const remainingAttempts = VERIFICATION_ATTEMPT_CONFIG.MAX_ATTEMPTS - attemptResult.attemptCount;
+
+            if (attemptResult.justBlocked) {
+                return NextResponse.json({
+                    success: false,
+                    message: getBlockedMessage(),
+                    isBlocked: true
+                }, { status: 403 });
+            }
+
             return NextResponse.json({
                 success: false,
-                message: 'Employee ID and Name do not match. Please check and try again'
+                message: `Employee ID and Name do not match. Please check and try again. (${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining)`,
+                remainingAttempts
             }, { status: 400 });
         }
 
-        // Validation successful
+        // Validation successful - reset attempt counter
+        await resetVerificationAttempt(decoded.id, normalizedEmployeeId);
+
         return NextResponse.json({
             success: true,
             message: 'Employee validated successfully'
