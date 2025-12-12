@@ -87,7 +87,8 @@ export async function POST(request) {
 }
 
 /**
- * Send email with logging (development only for detailed logs)
+ * Send email with logging
+ * Errors are always logged to help debug production issues
  */
 async function sendEmailAsync(email, otp) {
     if (isDev) {
@@ -99,9 +100,9 @@ async function sendEmailAsync(email, otp) {
         const hasEmailProvider = process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY;
 
         if (!hasEmailProvider) {
-            if (isDev) {
-                console.warn(`[OTP] No email provider configured. OTP for ${email}: ${otp}`);
-            }
+            // ALWAYS log this error - critical for debugging production
+            console.error(`[OTP] ❌ CRITICAL: No email provider API key configured!`);
+            console.error(`[OTP] Check BREVO_API_KEY, SENDGRID_API_KEY, or RESEND_API_KEY in environment variables`);
             return;
         }
 
@@ -113,9 +114,10 @@ async function sendEmailAsync(email, otp) {
         }
 
     } catch (error) {
-        if (isDev) {
-            console.error(`[OTP] ❌ Failed to send email to ${email}:`, error.message);
-            console.log(`[OTP] Fallback - OTP for ${email}: ${otp}`);
+        // ALWAYS log email failures - critical for production debugging
+        console.error(`[OTP] ❌ Failed to send email to ${email}:`, error.message);
+        if (error.response) {
+            console.error(`[OTP] API Response:`, error.response?.body || error.response);
         }
     }
 }
