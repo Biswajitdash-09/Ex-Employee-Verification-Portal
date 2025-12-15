@@ -468,12 +468,15 @@ const VerificationWizard = () => {
 
                 <div className="form-control">
                   <label className="label"><span className="label-text font-semibold">Designation</span></label>
-                  <select name="designation" value={formData.designation} onChange={handleFormChange} className="select select-bordered" required>
-                    <option value="">Select Designation</option>
-                    <option value="Executive">Executive</option>
-                    <option value="Assistant Manager">Assistant Manager</option>
-                    <option value="Manager">Manager</option>
-                  </select>
+                  <input
+                    type="text"
+                    name="designation"
+                    value={formData.designation}
+                    onChange={handleFormChange}
+                    placeholder="e.g., Executive, Manager, etc."
+                    className="input input-bordered"
+                    required
+                  />
                 </div>
 
                 <div className="form-control">

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { appealAPI, handleError } from '@/lib/api.service';
 import Icon from '@/components/Icon';
 import Toast from '@/components/ui/Toast';
 
 export default function AppealDetail({ appealId }) {
+  const router = useRouter();
   const [appeal, setAppeal] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [showResponseForm, setShowResponseForm] = useState(false);
   const [hrResponseText, setHrResponseText] = useState('');
   const [selectedAction, setSelectedAction] = useState('approved');
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
@@ -51,7 +52,11 @@ export default function AppealDetail({ appealId }) {
 
       if (response.success) {
         setAppeal(prev => ({ ...prev, status: newStatus, hrResponse }));
-        showToast(`Appeal has been ${newStatus}.`, 'success');
+        showToast(`Appeal has been ${newStatus}. Redirecting...`, 'success');
+        // Navigate back to appeals list after 1.5 seconds so user sees the success message
+        setTimeout(() => {
+          router.push('/admin/appeals');
+        }, 1500);
       } else {
         showToast(response.message || 'Failed to update appeal', 'error');
       }
@@ -271,81 +276,58 @@ export default function AppealDetail({ appealId }) {
             <>
               <div className="divider"></div>
 
-              {!showResponseForm ? (
-                <div className="card-actions justify-end mt-4">
-                  <button
-                    className="btn btn-error"
-                    onClick={() => {
-                      setSelectedAction('rejected');
-                      setShowResponseForm(true);
-                    }}
-                    disabled={isUpdating}
+              <div className="bg-base-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  HR Response
+                </h3>
+
+                <div className="form-control mb-4">
+                  <label className="label">
+                    <span className="label-text font-semibold">Decision <span className="text-error">*</span></span>
+                  </label>
+                  <select
+                    className="select select-bordered w-full"
+                    value={selectedAction}
+                    onChange={(e) => setSelectedAction(e.target.value)}
                   >
-                    <Icon name="XCircle" className="w-5 h-5" />
-                    Reject
-                  </button>
+                    <option value="approved">Approve Appeal</option>
+                    <option value="rejected">Reject Appeal</option>
+                  </select>
+                </div>
+
+                <div className="form-control mb-4">
+                  <label className="label">
+                    <span className="label-text font-semibold">HR Comments <span className="text-error">*</span></span>
+                  </label>
+                  <textarea
+                    className="textarea textarea-bordered h-24"
+                    placeholder="Enter your comments for the verifier explaining your decision..."
+                    value={hrResponseText}
+                    onChange={(e) => setHrResponseText(e.target.value)}
+                    required
+                  ></textarea>
+                  <label className="label">
+                    <span className="label-text-alt text-base-content/60">
+                      This comment will be sent to the verifier via email
+                    </span>
+                  </label>
+                </div>
+
+                <div className="card-actions justify-end gap-2">
                   <button
-                    className="btn btn-success"
-                    onClick={() => {
-                      setSelectedAction('approved');
-                      setShowResponseForm(true);
-                    }}
-                    disabled={isUpdating}
+                    className={`btn ${selectedAction === 'approved' ? 'btn-success' : 'btn-error'}`}
+                    onClick={() => handleUpdateStatus(selectedAction, hrResponseText)}
+                    disabled={isUpdating || !hrResponseText.trim()}
                   >
-                    <Icon name="CheckCircle" className="w-5 h-5" />
-                    Approve
+                    {isUpdating ? <span className="loading loading-spinner"></span> : (
+                      <>
+                        <Icon name="Send" className="w-4 h-4" />
+                        Respond
+                      </>
+                    )}
                   </button>
                 </div>
-              ) : (
-                <div className="bg-base-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold mb-4">
-                    HR Comments - {selectedAction === 'approved' ? 'Approve Appeal' : 'Reject Appeal'}
-                  </h3>
-
-                  <div className="form-control mb-4">
-                    <label className="label">
-                      <span className="label-text font-semibold">HR Comments <span className="text-error">*</span></span>
-                    </label>
-                    <textarea
-                      className="textarea textarea-bordered h-24"
-                      placeholder="Enter your comments for the verifier explaining your decision..."
-                      value={hrResponseText}
-                      onChange={(e) => setHrResponseText(e.target.value)}
-                      required
-                    ></textarea>
-                    <label className="label">
-                      <span className="label-text-alt text-base-content/60">
-                        This comment will be sent to the verifier via email
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="card-actions justify-end gap-2">
-                    <button
-                      className="btn btn-ghost"
-                      onClick={() => {
-                        setShowResponseForm(false);
-                        setHrResponseText('');
-                      }}
-                      disabled={isUpdating}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className={`btn ${selectedAction === 'approved' ? 'btn-success' : 'btn-error'}`}
-                      onClick={() => handleUpdateStatus(selectedAction, hrResponseText)}
-                      disabled={isUpdating || !hrResponseText.trim()}
-                    >
-                      {isUpdating ? <span className="loading loading-spinner"></span> : (
-                        <>
-                          {selectedAction === 'approved' ? <Icon name="CheckCircle" className="w-4 h-4" /> : <Icon name="XCircle" className="w-4 h-4" />}
-                          {selectedAction === 'approved' ? 'Approve' : 'Reject'}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
+              </div>
             </>
           )}
         </div>
