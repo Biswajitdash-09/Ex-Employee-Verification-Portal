@@ -53,9 +53,9 @@ export default function AppealDetail({ appealId }) {
       if (response.success) {
         setAppeal(prev => ({ ...prev, status: newStatus, hrResponse }));
         showToast(`Appeal has been ${newStatus}. Redirecting...`, 'success');
-        // Navigate back to appeals list after 1.5 seconds so user sees the success message
+        // Navigate back to dashboard after 1.5 seconds so user sees the success message
         setTimeout(() => {
-          router.push('/admin/appeals');
+          router.push('/admin/dashboard');
         }, 1500);
       } else {
         showToast(response.message || 'Failed to update appeal', 'error');
