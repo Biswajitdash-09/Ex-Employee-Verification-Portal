@@ -3,12 +3,9 @@ import { extractTokenFromHeader, verifyToken } from '@/lib/auth';
 import { findEmployeeById } from '@/lib/mongodb.data.service';
 
 /**
- * Validate that Employee ID exists before proceeding to next step
+ * Validate that Employee ID and Name match before proceeding to next step
  * POST /api/verify/validate-employee
  * Body: { employeeId: string, name: string }
- * 
- * Note: This ONLY checks if the Employee ID exists in the database.
- * Name and other field comparisons are shown in the final results page.
  */
 export async function POST(request) {
     try {
@@ -53,8 +50,9 @@ export async function POST(request) {
         }
 
         const normalizedEmployeeId = employeeId.toUpperCase().trim();
+        const normalizedInputName = name.trim().toLowerCase();
 
-        // Find employee in MongoDB - ONLY check if employee ID exists
+        // Find employee in MongoDB
         const employee = await findEmployeeById(normalizedEmployeeId);
 
         if (!employee) {
@@ -64,11 +62,20 @@ export async function POST(request) {
             }, { status: 404 });
         }
 
-        // Employee ID exists - proceed to next step
-        // Name and all other field comparisons will be shown in the final results
+        // Check if name matches (case-insensitive)
+        const employeeName = employee.name?.trim().toLowerCase() || '';
+
+        if (normalizedInputName !== employeeName) {
+            return NextResponse.json({
+                success: false,
+                message: 'Employee ID and Name do not match. Please check the details and try again.'
+            }, { status: 400 });
+        }
+
+        // Both Employee ID and Name match - proceed to next step
         return NextResponse.json({
             success: true,
-            message: 'Employee ID verified. Proceed to enter employment details.'
+            message: 'Employee verified. Proceed to enter employment details.'
         }, { status: 200 });
 
     } catch (error) {
@@ -81,5 +88,6 @@ export async function POST(request) {
         }, { status: 500 });
     }
 }
+
 
 
