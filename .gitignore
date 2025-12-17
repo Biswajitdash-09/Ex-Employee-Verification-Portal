@@ -42,3 +42,4 @@ next-env.d.ts
 # File-based storage (development only)
 /.storage/
 .storage
+/public/uploads/

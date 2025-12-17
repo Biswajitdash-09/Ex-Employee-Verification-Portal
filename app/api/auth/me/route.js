@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { extractTokenFromHeader } from '@/lib/auth';
-import db from '@/lib/localStorage.service';
+import { extractTokenFromHeader, verifyToken } from '@/lib/auth';
+import { findVerifierById, updateVerifier } from '@/lib/mongodb.data.service';
 
 export async function GET(request) {
   try {
@@ -13,9 +13,8 @@ export async function GET(request) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
-    
+
     if (decoded.role !== 'verifier') {
       return NextResponse.json({
         success: false,
@@ -23,8 +22,8 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    // Get verifier details from localStorage
-    const verifier = db.findVerifierById(decoded.id);
+    // Get verifier details from MongoDB
+    const verifier = await findVerifierById(decoded.id);
 
     if (!verifier) {
       return NextResponse.json({
@@ -34,7 +33,7 @@ export async function GET(request) {
     }
 
     // Return verifier data (without password)
-    const { password, ...verifierData } = verifier;
+    const { password, ...verifierData } = verifier.toObject ? verifier.toObject() : verifier;
 
     return NextResponse.json({
       success: true,
@@ -43,7 +42,7 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Get profile error:', error);
-    
+
     return NextResponse.json({
       success: false,
       message: 'Failed to fetch profile',
@@ -63,9 +62,8 @@ export async function PUT(request) {
       }, { status: 401 });
     }
 
-    const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(token);
-    
+
     if (decoded.role !== 'verifier') {
       return NextResponse.json({
         success: false,
@@ -88,8 +86,8 @@ export async function PUT(request) {
       }, { status: 400 });
     }
 
-    // Update verifier in localStorage
-    const updatedVerifier = db.updateVerifier(decoded.id, allowedUpdates);
+    // Update verifier in MongoDB
+    const updatedVerifier = await updateVerifier(decoded.id, allowedUpdates);
 
     if (!updatedVerifier) {
       return NextResponse.json({
@@ -99,7 +97,8 @@ export async function PUT(request) {
     }
 
     // Return updated data (without password)
-    const { password, ...verifierData } = updatedVerifier;
+    const verifierObj = updatedVerifier.toObject ? updatedVerifier.toObject() : updatedVerifier;
+    const { password, ...verifierData } = verifierObj;
 
     return NextResponse.json({
       success: true,
@@ -109,7 +108,7 @@ export async function PUT(request) {
 
   } catch (error) {
     console.error('Update profile error:', error);
-    
+
     return NextResponse.json({
       success: false,
       message: 'Failed to update profile',
