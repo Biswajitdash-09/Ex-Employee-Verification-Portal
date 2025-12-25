@@ -23,7 +23,7 @@ export default function AppealDetail({ appealId }) {
         if (response.success) {
           setAppeal(response.data.appeal);
         } else {
-          showToast(response.message || 'Failed to load appeal data', 'error');
+          showToast(response.message || 'Failed to load query data', 'error');
         }
       } catch (error) {
         handleError(error, showToast);
@@ -52,13 +52,13 @@ export default function AppealDetail({ appealId }) {
 
       if (response.success) {
         setAppeal(prev => ({ ...prev, status: newStatus, hrResponse }));
-        showToast(`Appeal has been ${newStatus}. Redirecting...`, 'success');
+        showToast(`Query has been ${newStatus}. Redirecting...`, 'success');
         // Navigate back to dashboard after 1.5 seconds so user sees the success message
         setTimeout(() => {
           router.push('/admin/dashboard');
         }, 1500);
       } else {
-        showToast(response.message || 'Failed to update appeal', 'error');
+        showToast(response.message || 'Failed to update query', 'error');
       }
     } catch (error) {
       handleError(error, showToast);
@@ -85,7 +85,7 @@ export default function AppealDetail({ appealId }) {
       <div className="card bg-base-100 shadow-xl">
         <div className="card-body items-center text-center p-10">
           <span className="loading loading-spinner loading-lg text-primary"></span>
-          <p className="mt-4 text-lg font-semibold">Loading Appeal Details...</p>
+          <p className="mt-4 text-lg font-semibold">Loading Query Details...</p>
         </div>
       </div>
     );
@@ -96,8 +96,8 @@ export default function AppealDetail({ appealId }) {
       <div className="card bg-base-100 shadow-xl">
         <div className="card-body items-center text-center p-10">
           <Icon name="FileX2" className="w-16 h-16 text-error mb-4" />
-          <h2 className="card-title text-2xl">Appeal Not Found</h2>
-          <p className="text-base-content/70">The requested appeal could not be found. It may have been deleted or the ID is incorrect.</p>
+          <h2 className="card-title text-2xl">Query Not Found</h2>
+          <p className="text-base-content/70">The requested query could not be found. It may have been deleted or the ID is incorrect.</p>
         </div>
       </div>
     );
@@ -110,7 +110,7 @@ export default function AppealDetail({ appealId }) {
         <div className="card-body p-8">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h2 className="card-title text-2xl">Appeal ID</h2>
+              <h2 className="card-title text-2xl">Query ID</h2>
               <p className="font-mono text-sm text-base-content/70 mt-1">{appeal.appealId}</p>
             </div>
             <span className={`badge ${getStatusBadge(appeal.status)} badge-lg capitalize`}>
@@ -290,8 +290,8 @@ export default function AppealDetail({ appealId }) {
                     value={selectedAction}
                     onChange={(e) => setSelectedAction(e.target.value)}
                   >
-                    <option value="approved">Approve Appeal</option>
-                    <option value="rejected">Reject Appeal</option>
+                    <option value="approved">Approve Query</option>
+                    <option value="rejected">Reject Query</option>
                   </select>
                 </div>
 

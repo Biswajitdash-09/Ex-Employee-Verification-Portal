@@ -23,10 +23,10 @@ export default function AppealDetailPage({ params }) {
         </Link>
         <h1 className="text-4xl font-bold text-base-content tracking-tight flex items-center gap-3">
           <Icon name="FileText" className="w-9 h-9 text-primary" />
-          Appeal Details
+          Query Details
         </h1>
         <p className="mt-2 text-lg text-base-content/70">
-          Review the details of the appeal and take action.
+          Review the details of the query and take action.
         </p>
       </div>
 

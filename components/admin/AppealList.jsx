@@ -30,7 +30,7 @@ export default function AppealList() {
         if (response.success) {
           setAppeals(response.data.appeals || []);
         } else {
-          showToast(response.message || 'Failed to fetch appeals', 'error');
+          showToast(response.message || 'Failed to fetch queries', 'error');
         }
       } catch (error) {
         handleError(error, showToast);
@@ -83,7 +83,7 @@ export default function AppealList() {
     const appealsToExport = activeTab === 'pending' ? pendingAppeals : resolvedAppeals;
 
     // Generate CSV
-    const headers = ['Appeal ID', 'Employee ID', 'Company', 'Status', 'Date Submitted'];
+    const headers = ['Query ID', 'Employee ID', 'Company', 'Status', 'Date Submitted'];
     let csvContent = headers.join(',') + '\n';
 
     appealsToExport.forEach(appeal => {
@@ -102,13 +102,13 @@ export default function AppealList() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Appeals_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Queries_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    showToast('Appeals exported successfully!', 'success');
+    showToast('Queries exported successfully!', 'success');
   };
 
   const renderAppealTable = (appealsList, emptyMessage) => {
@@ -126,7 +126,7 @@ export default function AppealList() {
         <table className="table table-zebra w-full">
           <thead>
             <tr className="bg-base-200">
-              <th className="p-4">Appeal ID</th>
+              <th className="p-4">Query ID</th>
               <th>Employee ID</th>
               <th>Verifying Company</th>
               <th>Date Submitted</th>
@@ -227,7 +227,7 @@ export default function AppealList() {
           onClick={() => setActiveTab('pending')}
         >
           <Icon name="Clock" className="w-4 h-4" />
-          Pending Appeals
+          Pending Queries
           <span className="badge badge-warning badge-sm">{pendingAppeals.length}</span>
         </button>
         <button
@@ -235,16 +235,16 @@ export default function AppealList() {
           onClick={() => setActiveTab('resolved')}
         >
           <Icon name="CheckCircle" className="w-4 h-4" />
-          Resolved Appeals
+          Resolved Queries
           <span className="badge badge-success badge-sm">{resolvedAppeals.length}</span>
         </button>
       </div>
 
       {/* Appeal Table based on active tab */}
       {activeTab === 'pending' ? (
-        renderAppealTable(pendingAppeals, 'No pending appeals found')
+        renderAppealTable(pendingAppeals, 'No pending queries found')
       ) : (
-        renderAppealTable(resolvedAppeals, 'No resolved appeals found')
+        renderAppealTable(resolvedAppeals, 'No resolved queries found')
       )}
     </>
   );

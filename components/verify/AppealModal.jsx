@@ -85,7 +85,7 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId, v
       const response = await appealAPI.submitAppeal(appealData, file);
 
       if (response.success) {
-        showToast('Appeal submitted successfully! HR team will review your case.', 'success');
+        showToast('Query submitted successfully! HR team will review your case.', 'success');
 
         // Reset form and close modal
         setComments('');
@@ -98,7 +98,7 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId, v
         }
         onClose();
       } else {
-        showToast(response.message || 'Failed to submit appeal', 'error');
+        showToast(response.message || 'Failed to submit query', 'error');
       }
     } catch (error) {
       handleError(error, showToast);
@@ -122,7 +122,7 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId, v
         <div className="mb-6">
           <h3 className="font-bold text-2xl mb-2 flex items-center gap-2">
             <Icon name="FileWarning" className="w-6 h-6 text-warning" />
-            Submit an Appeal
+            Raise a Query
           </h3>
           <p className="text-base-content/70">
             If you believe there is a discrepancy in the verification results, please provide comments and any supporting documents.
@@ -158,10 +158,10 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId, v
             <Icon name="CheckCircle2" className="w-16 h-16 text-success mx-auto mb-3" />
             <h4 className="font-semibold text-lg mb-2 text-success">Perfect Match!</h4>
             <p className="text-base-content/70">
-              All verification fields matched company records. No mismatches found to appeal.
+              All verification fields matched company records. No mismatches found to query.
             </p>
             <p className="text-sm text-base-content/60 mt-2">
-              You can only submit an appeal if there are discrepancies in the verification results.
+              You can only raise a query if there are discrepancies in the verification results.
             </p>
           </div>
         )}
@@ -171,7 +171,7 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId, v
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="form-control">
               <label className="label">
-                <span className="label-text font-semibold">Appeal Comments <span className="text-error">*</span></span>
+                <span className="label-text font-semibold">Query Comments <span className="text-error">*</span></span>
               </label>
               <textarea
                 className="textarea textarea-bordered h-32"
@@ -249,10 +249,10 @@ const AppealModal = ({ isOpen, onClose, showToast, verificationId, verifierId, v
                 Cancel
               </button>
               <div className="text-sm text-base-content/60">
-                {mismatchedFields.length} field{mismatchedFields.length !== 1 ? 's' : ''} selected for appeal
+                {mismatchedFields.length} field{mismatchedFields.length !== 1 ? 's' : ''} selected for query
               </div>
               <button type="submit" className="btn btn-primary" disabled={isLoading}>
-                {isLoading ? <span className="loading loading-spinner"></span> : 'Submit Appeal'}
+                {isLoading ? <span className="loading loading-spinner"></span> : 'Submit Query'}
               </button>
             </div>
           </form>

@@ -78,7 +78,7 @@ export default function AdminDashboardPage() {
               Admin Dashboard
             </h1>
             <p className="mt-2 text-lg text-base-content/70">
-              Review and manage employee verification appeals.
+              Review and manage employee verification queries.
             </p>
           </div>
           <ExcelExportButton />
@@ -114,7 +114,7 @@ export default function AdminDashboardPage() {
               <div className="card-body p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-base-content/60">Pending Appeals</p>
+                    <p className="text-sm text-base-content/60">Pending Queries</p>
                     <p className="text-2xl font-bold text-warning">{stats.pendingAppeals}</p>
                   </div>
                   <Icon name="FileWarning" className="w-8 h-8 text-warning/20" />
@@ -156,7 +156,7 @@ export default function AdminDashboardPage() {
           <div className="card-body">
             <div className="flex items-center justify-between mb-4">
               <h2 className="card-title text-2xl">
-                Appeal Management
+                Query Management
               </h2>
               {stats && stats.pendingAppeals > 0 && (
                 <span className="badge badge-warning badge-lg">

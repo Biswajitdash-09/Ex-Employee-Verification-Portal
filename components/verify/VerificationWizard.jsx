@@ -548,22 +548,13 @@ const VerificationWizard = () => {
                   </table>
                 </div>
 
-                <div className="mt-6 p-4 bg-base-200 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-2">F&F Status</h3>
-                  <div className="badge badge-lg">
-                    {verificationResult.employeeData.fnfStatus === 'Completed' ? (
-                      <span className="text-success-content bg-success">Completed</span>
-                    ) : (
-                      <span className="text-warning-content bg-warning">Pending</span>
-                    )}
-                  </div>
-                </div>
+
 
                 <div className="card-actions flex-wrap justify-center gap-4 mt-8">
                   {/* Only show Raise Appeal if there is a mismatch */}
                   {verificationResult.comparisonResults?.some(r => !r.isMatch) && (
                     <button className="btn" style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: 'white', fontFamily: "'Montserrat', sans-serif" }} onClick={() => setIsAppealModalOpen(true)}>
-                      <Icon name="FileWarning" className="w-4 h-4" /> Raise Appeal
+                      <Icon name="FileWarning" className="w-4 h-4" /> Raise Query
                     </button>
                   )}
 
