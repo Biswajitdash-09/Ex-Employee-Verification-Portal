@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import AppealList from '@/components/admin/AppealList';
+import AccessLogList from '@/components/admin/AccessLogList';
 import ExcelExportButton from '@/components/admin/ExcelExportButton';
 import Icon from '@/components/Icon';
 import Toast from '@/components/ui/Toast';
@@ -10,6 +11,7 @@ import Toast from '@/components/ui/Toast';
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('appeals');
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
   const showToast = (message, type) => {
@@ -151,20 +153,38 @@ export default function AdminDashboardPage() {
           </div>
         ) : null}
 
-        {/* Appeals Section */}
+        {/* Tabs and Content */}
         <div className="card bg-base-100 shadow-xl">
-          <div className="card-body">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="card-title text-2xl">
+          <div className="card-body p-0">
+            <div role="tablist" className="tabs tabs-bordered tabs-lg w-full">
+              <a
+                role="tab"
+                className={`tab h-14 ${activeTab === 'appeals' ? 'tab-active font-bold' : ''}`}
+                onClick={() => setActiveTab('appeals')}
+              >
                 Query Management
-              </h2>
-              {stats && stats.pendingAppeals > 0 && (
-                <span className="badge badge-warning badge-lg">
-                  {stats.pendingAppeals} Pending
-                </span>
+                {stats && stats.pendingAppeals > 0 && (
+                  <span className="badge badge-warning badge-sm ml-2">
+                    {stats.pendingAppeals}
+                  </span>
+                )}
+              </a>
+              <a
+                role="tab"
+                className={`tab h-14 ${activeTab === 'logs' ? 'tab-active font-bold' : ''}`}
+                onClick={() => setActiveTab('logs')}
+              >
+                Access Logs
+              </a>
+            </div>
+
+            <div className="p-6">
+              {activeTab === 'appeals' ? (
+                <AppealList />
+              ) : (
+                <AccessLogList />
               )}
             </div>
-            <AppealList />
           </div>
         </div>
       </motion.div>

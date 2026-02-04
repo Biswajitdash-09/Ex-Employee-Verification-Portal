@@ -3,6 +3,7 @@ import { verifyOTP } from '@/lib/services/otp.service';
 import { generateToken } from '@/lib/auth';
 import connectDB from '@/lib/db/mongodb';
 import Verifier from '@/lib/models/Verifier';
+import { logAccess } from '@/lib/mongodb.data.service';
 
 /**
  * Verify OTP and login/register verifier
@@ -25,6 +26,17 @@ export async function POST(request) {
         // Verify OTP
         const verifyResult = await verifyOTP(email, otp);
         if (!verifyResult.success) {
+            // Log failure (Invalid OTP)
+            await logAccess({
+                email: email.toLowerCase(),
+                role: 'verifier',
+                action: 'LOGIN_OTP',
+                status: 'FAILURE',
+                failureReason: 'Invalid OTP',
+                ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+                userAgent: request.headers.get('user-agent') || 'unknown'
+            });
+
             return NextResponse.json({
                 success: false,
                 message: verifyResult.message
@@ -56,6 +68,20 @@ export async function POST(request) {
             verifier.lastLogin = new Date();
             await verifier.save();
         }
+
+        // Log success
+        await logAccess({
+            email: verifier.email,
+            role: 'verifier',
+            action: 'LOGIN_OTP',
+            status: 'SUCCESS',
+            ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+            userAgent: request.headers.get('user-agent') || 'unknown',
+            metadata: {
+                companyName: verifier.companyName,
+                isNewUser: !verifier.lastLoginAt // Rough check if new user
+            }
+        });
 
         // Generate JWT token
         const token = generateToken({

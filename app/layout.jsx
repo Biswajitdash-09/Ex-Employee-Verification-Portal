@@ -6,6 +6,7 @@ import "./globals.css";
 import { initData } from "@/lib/data.service.js";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import InactivityWrapper from "@/components/auth/InactivityWrapper";
 
 export default function RootLayout({ children }) {
   useEffect(() => {
@@ -20,13 +21,15 @@ export default function RootLayout({ children }) {
         <Script src="https://subtle-druid-430b16.netlify.app/codemate-badge.js" strategy="lazyOnload" />
       </head>
       <body className="antialiased">
-        <div className="flex flex-col min-h-screen bg-base-200">
-          <Header />
-          <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {children}
-          </main>
-          <Footer />
-        </div>
+        <InactivityWrapper>
+          <div className="flex flex-col min-h-screen bg-base-200">
+            <Header />
+            <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        </InactivityWrapper>
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import Toast from "@/components/ui/Toast";
+import { initializeActivityTracking } from "@/lib/hooks/useInactivityTimeout";
 
 const LoginForm = ({ userType, onLoginSuccess }) => {
   const [email, setEmail] = useState("");
@@ -35,40 +36,43 @@ const LoginForm = ({ userType, onLoginSuccess }) => {
       // Use backend API for authentication
       const response = userType === "admin"
         ? await fetch('/api/admin/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ username: email, password }),
-          })
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username: email, password }),
+        })
         : await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
-          });
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
 
       const data = await response.json();
 
       if (data.success) {
         // Store session for UI state with proper format
         const sessionKey = userType === "admin" ? "admin_session" : "verifier_session";
-        
+
         // Use the token from the backend response
         const sessionData = userType === "admin"
           ? {
-              ...data.data.admin,
-              token: data.data.token,
-              userType: "admin"
-            }
+            ...data.data.admin,
+            token: data.data.token,
+            userType: "admin"
+          }
           : {
-              ...data.data.verifier,
-              token: data.data.token,
-              userType: "verifier"
-            };
-        
+            ...data.data.verifier,
+            token: data.data.token,
+            userType: "verifier"
+          };
+
         localStorage.setItem(sessionKey, JSON.stringify(sessionData));
+
+        // Initialize activity tracking for session timeout
+        initializeActivityTracking();
 
         // Dispatch event to notify other components like Header
         window.dispatchEvent(new Event("local-storage-changed"));

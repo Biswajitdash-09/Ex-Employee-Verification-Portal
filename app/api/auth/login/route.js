@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { schemas } from '@/lib/validation';
 import { generateToken } from '@/lib/auth';
-import { findVerifierByEmail, updateVerifier } from '@/lib/mongodb.data.service';
+import { findVerifierByEmail, updateVerifier, logAccess } from '@/lib/mongodb.data.service';
 import bcrypt from 'bcryptjs';
 
 // Test mode is controlled by environment variable - disabled in production
@@ -36,6 +36,17 @@ export async function POST(request) {
     }
 
     if (!verifier) {
+      // Log failure (User not found)
+      await logAccess({
+        email: normalEmail.toLowerCase(),
+        role: 'unknown',
+        action: 'LOGIN',
+        status: 'FAILURE',
+        failureReason: 'User not found',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown'
+      });
+
       return NextResponse.json({
         success: false,
         message: 'Invalid email or password'
@@ -64,6 +75,17 @@ export async function POST(request) {
     }
 
     if (!isPasswordValid) {
+      // Log failure (Invalid password)
+      await logAccess({
+        email: verifier.email,
+        role: 'verifier',
+        action: 'LOGIN',
+        status: 'FAILURE',
+        failureReason: 'Invalid password',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown'
+      });
+
       return NextResponse.json({
         success: false,
         message: 'Invalid email or password'
@@ -73,6 +95,19 @@ export async function POST(request) {
     // Update last login time
     const updatedVerifier = await updateVerifier(verifier._id.toString(), {
       lastLoginAt: new Date()
+    });
+
+    // Log success
+    await logAccess({
+      email: verifier.email,
+      role: 'verifier',
+      action: 'LOGIN',
+      status: 'SUCCESS',
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown',
+      metadata: {
+        companyName: verifier.companyName
+      }
     });
 
     // Generate JWT token

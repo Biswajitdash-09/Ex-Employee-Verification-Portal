@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { schemas } from '@/lib/validation';
 import { generateToken } from '@/lib/auth';
-import { findAdminByUsername, updateAdminLastLogin } from '@/lib/mongodb.data.service';
+import { findAdminByUsername, updateAdminLastLogin, logAccess } from '@/lib/mongodb.data.service';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
@@ -33,6 +33,17 @@ export async function POST(request) {
     }
 
     if (!admin) {
+      // Log failure (Admin not found)
+      await logAccess({
+        email: username, // Using username as identifier for admin logs
+        role: 'admin', // Presumed role
+        action: 'LOGIN',
+        status: 'FAILURE',
+        failureReason: 'Admin not found',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown'
+      });
+
       return NextResponse.json({
         success: false,
         message: 'Invalid username or password'
@@ -61,6 +72,17 @@ export async function POST(request) {
     }
 
     if (!isPasswordValid) {
+      // Log failure (Invalid password)
+      await logAccess({
+        email: admin.email,
+        role: 'admin',
+        action: 'LOGIN',
+        status: 'FAILURE',
+        failureReason: 'Invalid password',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown'
+      });
+
       return NextResponse.json({
         success: false,
         message: 'Invalid username or password'
@@ -69,6 +91,20 @@ export async function POST(request) {
 
     // Update last login time
     await updateAdminLastLogin(admin._id.toString());
+
+    // Log success
+    await logAccess({
+      email: admin.email,
+      role: 'admin',
+      action: 'LOGIN',
+      status: 'SUCCESS',
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown',
+      metadata: {
+        username: admin.username,
+        role: admin.role
+      }
+    });
 
     // Generate JWT token
     const token = generateToken({
