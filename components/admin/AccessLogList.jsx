@@ -80,6 +80,28 @@ const AccessLogList = () => {
         return ip;
     };
 
+    const formatUserAgent = (ua) => {
+        if (!ua) return '-';
+
+        // Simple OS detection
+        let os = 'Unknown OS';
+        if (ua.includes('Windows')) os = 'Windows';
+        else if (ua.includes('Mac')) os = 'MacOS';
+        else if (ua.includes('Linux')) os = 'Linux';
+        else if (ua.includes('Android')) os = 'Android';
+        else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+        // Simple Browser detection
+        // Order matters: Edge/Chrome often contain "Safari", Chrome contains "Safari", etc.
+        let browser = 'Unknown Browser';
+        if (ua.includes('Edg/')) browser = 'Edge';
+        else if (ua.includes('Chrome/')) browser = 'Chrome';
+        else if (ua.includes('Firefox/')) browser = 'Firefox';
+        else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Safari';
+
+        return `${browser} on ${os}`;
+    };
+
     return (
         <div className="space-y-4">
             {/* Filters */}
@@ -176,8 +198,8 @@ const AccessLogList = () => {
                                         {log.status === 'FAILURE' ? (
                                             <span className="text-error">{log.failureReason}</span>
                                         ) : (
-                                            <span className="text-base-content/50 truncate">
-                                                {log.userAgent}
+                                            <span className="text-base-content/50 truncate" title={log.userAgent}>
+                                                {formatUserAgent(log.userAgent)}
                                             </span>
                                         )}
                                     </td>

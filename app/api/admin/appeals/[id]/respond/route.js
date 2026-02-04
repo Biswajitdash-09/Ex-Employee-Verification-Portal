@@ -56,6 +56,7 @@ export async function POST(request, { params }) {
 
     // Find appeal
     const appeal = await getAppealById(appealId);
+
     if (!appeal) {
       return NextResponse.json({
         success: false,
@@ -71,13 +72,11 @@ export async function POST(request, { params }) {
       }, { status: 400 });
     }
 
-    // Get verifier information
+    // Get verifier information - Log warning if missing but continue
     const verifier = await findVerifierById(appeal.verifierId);
+
     if (!verifier) {
-      return NextResponse.json({
-        success: false,
-        message: 'Associated verifier not found'
-      }, { status: 404 });
+      console.warn('[API] Warning: Verifier not found for appeal', appealId, 'Email will not be sent.');
     }
 
     // Update appeal with response
@@ -89,25 +88,29 @@ export async function POST(request, { params }) {
       reviewedAt: new Date()
     });
 
-    // Send email notification to verifier
-    try {
-      await sendAppealResponseEmail(updatedAppeal, verifier.email);
-    } catch (emailError) {
-      console.error('Failed to send appeal response email:', emailError);
-      // Continue with the response, but log the error
+    // Send email notification to verifier ONLY if verifier exists
+    let emailSent = false;
+    if (verifier) {
+      try {
+        await sendAppealResponseEmail(updatedAppeal, verifier.email);
+        emailSent = true;
+      } catch (emailError) {
+        console.error('Failed to send appeal response email:', emailError);
+        // Continue with the response, but log the error
+      }
     }
 
     // Return updated appeal information
     return NextResponse.json({
       success: true,
-      message: `Appeal has been ${status} successfully`,
+      message: `Appeal has been ${status} successfully${!verifier ? ' (Verifier not found, no email sent)' : ''}`,
       data: {
         appealId: updatedAppeal.appealId,
         status: updatedAppeal.status,
         employeeId: updatedAppeal.employeeId,
-        verifierEmail: verifier.email,
+        verifierEmail: verifier ? verifier.email : null,
         reviewedAt: updatedAppeal.reviewedAt,
-        emailSent: true
+        emailSent: emailSent
       }
     }, { status: 200 });
 
